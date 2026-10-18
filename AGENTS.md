@@ -51,7 +51,8 @@ with `pull_request_target` or another privileged event.
   support from runtime validation on the local x86_64 machine. Keep changing
   versions, source pins, and checksums authoritative in `PKGBUILD`/`.SRCINFO`;
   label historical verification notes with the initial version.
-- Make atomic Conventional Commits (`docs:`, `feat:`, `fix:`, `ci:`, `test:`).
+- Make atomic Conventional Commits (`docs:`, `feat:`, `fix:`, `ci:`, `test:`,
+  `chore:` for routine version bumps and removals).
   Stage named files and inspect the staged diff. Do not include unrelated work.
 - Use `rg` for searches. When RTK is installed, prefix shell tool calls with
   `rtk` (use `rtk proxy` for commands without a dedicated wrapper).
