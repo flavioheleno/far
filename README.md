@@ -36,6 +36,7 @@ AGENTS.md              Instructions for future repository work
 | [rtk-bin](packages/rtk-bin/) | x86_64 supported | Stable RTK releases |
 | [spotify](packages/spotify/) | x86_64 supported | Vendor testing channel |
 | [tableplus](packages/tableplus/) | x86_64 supported | Vendor Alpha releases |
+| [saleae-logic2](packages/saleae-logic2/) | x86_64 supported | Vendor Logic 2 releases |
 
 ## Local build and installation
 

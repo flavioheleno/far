@@ -1,0 +1,4 @@
+[saleae-logic2]
+source = "aur"
+aur = "saleae-logic2"
+use_last_modified = true
