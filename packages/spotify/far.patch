@@ -1,0 +1,10 @@
+--- a/PKGBUILD
++++ b/PKGBUILD
+@@ -21,2 +21,7 @@
+ options=('!strip')
++
++# FAR: use wget for every remote source, including signed repository metadata.
++makedepends=('wget')
++DLAGENTS=('http::/usr/bin/wget --continue --tries=3 --timeout=30 --output-document %o %u'
++          'https::/usr/bin/wget --continue --tries=3 --timeout=30 --output-document %o %u')
+ 

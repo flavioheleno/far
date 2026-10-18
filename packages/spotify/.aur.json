@@ -1,0 +1,11 @@
+{
+  "revision": "24ce1b811f5b4a821fa4b3ac332455933ff5e167",
+  "files": {
+    ".SRCINFO": "c874a2116aad0eb5a250d7eef95ad4453c3e5a4eb2fc16b08093bbf291ef501b",
+    "LICENSE": "4e8bea31ca27e16cac9c9dcd8f6ec27e1f82b45de86d6fee7a1e77e23f884b92",
+    "PKGBUILD": "b9194f5f41f0e092a3c2681574ed67aafb375dbd431ecc4d88cd19c906d5166d",
+    "keys/pgp/E1096BCBFF6D418796DE78515384CE82BA52C83A.asc": "31cc40faddd0e0ffb62fb53a04e4ad79c7fc0945b8c1622233c480571be34572",
+    "spotify.protocol": "af54f3b90cac46fa100b3f919a9225d10d847617d24aa9af3d832e7689f482c3",
+    "spotify.sh": "764cf7d24c35e3327cef4c0469351dabbf8b1edbaa10e1f35f64c91f135b31d9"
+  }
+}

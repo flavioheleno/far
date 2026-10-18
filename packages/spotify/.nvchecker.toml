@@ -1,0 +1,4 @@
+[spotify]
+source = "aur"
+aur = "spotify"
+use_last_modified = true

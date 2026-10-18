@@ -34,6 +34,7 @@ AGENTS.md              Instructions for future repository work
 | --- | --- | --- |
 | [bambustudio-appimage](packages/bambustudio-appimage/) | x86_64 | Stable and beta |
 | [rtk-bin](packages/rtk-bin/) | x86_64 supported | Stable RTK releases |
+| [spotify](packages/spotify/) | x86_64 supported | Vendor testing channel |
 
 ## Local build and installation
 

@@ -1,0 +1,2 @@
+# Unified diffs require context prefixes, including a space on blank lines.
+*.patch -whitespace
