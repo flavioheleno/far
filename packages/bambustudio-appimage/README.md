@@ -30,27 +30,29 @@ From the root of a current FAR checkout, build with rua:
 rua builddir ./packages/bambustudio-appimage
 ```
 
-This is rua's local-directory build command. Its usual `install` and `upgrade`
-commands look up AUR packages and do not track this GitHub monorepo. Review the
-build output, then follow rua's reported package path for local installation.
+This builds, reviews, and installs the local recipe. Rua's usual `install` and
+`upgrade` commands look up AUR packages and do not track this GitHub monorepo.
 
 Alternatively, using `base-devel` and the declared dependencies:
 
 ```sh
 cd packages/bambustudio-appimage
 makepkg --syncdeps
-sudo pacman -U ./bambustudio-appimage-2.8.4.57-1-x86_64.pkg.tar.zst
+makepkg --packagelist
 ```
 
-Use the filename reported by `makepkg` when the version changes. `makepkg -si`
+Install the reported archive with `sudo pacman -U <package-file>`. `makepkg -si`
 combines the build and installation steps. Run a normal Arch system upgrade
 before installing newly updated recipes. Read the recipe and diff before use.
 
 ## Updates and checks
 
 `.nvchecker.toml` declares the GitHub source, beta policy, and version
-normalization. The package updater will also resolve the exact timestamped asset;
-changing `pkgver` alone cannot update this recipe correctly.
+normalization. `update.py` resolves the exact timestamped Ubuntu 24 asset, accepts
+the known `ubu24`, `ubuntu24.04`, and `ubuntu-24.04` naming forms, and rejects
+missing or ambiguous assets. It selects the highest complete version among
+eligible published releases, independently of API listing order. Changing
+`pkgver` alone cannot update this recipe correctly.
 
 Current source SHA-256 was checked against the downloaded 243,841,528-byte asset
 and GitHub's release-asset digest. Metadata and source integrity checks do not

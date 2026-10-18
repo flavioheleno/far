@@ -50,5 +50,11 @@ with `pull_request_target` or another privileged event.
 - Keep secrets, tokens, personal configuration, downloads, and build products out
   of Git. Do not modify system configuration as part of repository maintenance.
 
+Before committing recipe or updater changes, run `./scripts/check-packages` and
+`python3 -m unittest discover -s tests -v`. Both are recipe-only checks. Run a
+preview of affected packages against saved metadata when available; do not use
+live upstream data in unit tests. `scripts/far.py` contains shared maintenance;
+each package's `update.py` implements `select_candidate` and `render_recipe`.
+
 The root README is the entry point for commands and GitHub setup. Follow any
 additional package instructions, keeping the recipe-only boundary above intact.

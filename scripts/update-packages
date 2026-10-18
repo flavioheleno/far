@@ -1,0 +1,4 @@
+#!/usr/bin/env python3
+from far import cli, update_main
+
+cli(update_main)

@@ -1,0 +1,4 @@
+#!/usr/bin/env python3
+from far import check_main, cli
+
+cli(check_main)
