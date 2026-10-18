@@ -1,0 +1,4 @@
+[tailwindcss-bin]
+source = "aur"
+aur = "tailwindcss-bin"
+use_last_modified = true

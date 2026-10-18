@@ -37,6 +37,7 @@ AGENTS.md              Instructions for future repository work
 | [spotify](packages/spotify/) | x86_64 supported | Vendor testing channel |
 | [tableplus](packages/tableplus/) | x86_64 supported | Vendor Alpha releases |
 | [saleae-logic2](packages/saleae-logic2/) | x86_64 supported | Vendor Logic 2 releases |
+| [tailwindcss-bin](packages/tailwindcss-bin/) | x86_64 supported | Stable standalone CLI |
 
 ## Local build and installation
 
