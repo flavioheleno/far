@@ -57,6 +57,24 @@ class IntegrityTests(unittest.TestCase):
         self.assertEqual(far.assignment(rendered, "pkgver"), "1.1")
         self.assertEqual(far.assignment(rendered, "pkgrel"), "1")
 
+    def test_transient_upstream_failures_retry_but_client_errors_do_not(self):
+        from urllib.error import HTTPError
+        url = "https://vendor.example/Packages"
+        response = io.BytesIO(b"index")
+        response.geturl = lambda: url
+        def error(code):
+            return HTTPError(url, code, "fixture", {}, None)
+        with patch.object(upstream, "urlopen", side_effect=[error(503), TimeoutError(), response]) as request, \
+                patch.object(upstream.time, "sleep") as sleep:
+            self.assertIs(upstream.open_upstream(url, CONFIG), response)
+        self.assertEqual((request.call_count, sleep.call_count), (3, 2))
+        for side_effect, calls in (([error(404)], 1), ([error(503)] * 3, 3)):
+            with patch.object(upstream, "urlopen", side_effect=side_effect) as request, \
+                    patch.object(upstream.time, "sleep"):
+                with self.assertRaises(far.MaintenanceError):
+                    upstream.open_upstream(url, CONFIG)
+            self.assertEqual(request.call_count, calls)
+
     def test_literal_rewrite_leaves_computed_assignments_untouched(self):
         recipe = RECIPE + "_url=$(printf %s \"$base\")\n"
         rendered = upstream.set_literal(recipe, "_url", "https://vendor.example/1.1.deb")

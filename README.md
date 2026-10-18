@@ -192,7 +192,9 @@ Each configuration declares allowed HTTPS hosts, assignments, and checksum
 slots. Every declared architecture must be available at the same version. New
 payloads are downloaded into the hashing stream and discarded, with declared
 sizes and published checksums verified when available. Current sources with no
-published checksum are downloaded again to detect changed content. Local
+published checksum are downloaded again to detect changed content. Upstream
+requests retry rate limits, server errors, and network failures up to three
+times; other HTTP errors fail immediately. Local
 supporting files and recipe customizations remain in FAR; the updater changes
 only the version/source literals, payload checksums, `pkgrel`, and `.SRCINFO`.
 

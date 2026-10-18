@@ -7,7 +7,8 @@ from pathlib import Path
 import re
 import shlex
 import subprocess
-from urllib.error import URLError
+import time
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
@@ -58,16 +59,24 @@ def validate_url(url: str, config: dict) -> str:
 
 def open_upstream(url: str, config: dict, *, method: str = "GET"):
     validate_url(url, config)
-    try:
-        response = urlopen(Request(url, headers={"User-Agent": "far-recipe-updater"}, method=method), timeout=60)
+    # Retry transient failures like request_json(); client errors fail immediately.
+    for attempt in range(3):
         try:
-            validate_url(response.geturl(), config)
-        except BaseException:
-            response.close()
-            raise
-        return response
-    except (URLError, TimeoutError) as error:
-        raise MaintenanceError(f"Upstream request failed for {url}: {error}") from error
+            response = urlopen(Request(url, headers={"User-Agent": "far-recipe-updater"}, method=method), timeout=60)
+            try:
+                validate_url(response.geturl(), config)
+            except BaseException:
+                response.close()
+                raise
+            return response
+        except HTTPError as error:
+            if error.code not in {429, 500, 502, 503, 504} or attempt == 2:
+                raise MaintenanceError(f"Upstream request failed for {url}: HTTP {error.code}") from error
+        except (URLError, TimeoutError) as error:
+            if attempt == 2:
+                raise MaintenanceError(f"Upstream request failed for {url}: {error}") from error
+        time.sleep(2 ** attempt)
+    raise MaintenanceError(f"Upstream request failed for {url}")
 
 
 def fetch(url: str, config: dict, *, limit: int = 8 * 1024 ** 2) -> bytes:
