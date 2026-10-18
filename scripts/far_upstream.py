@@ -105,6 +105,14 @@ def compare_versions(new: str, old: str) -> int:
     return int(result.stdout.strip())
 
 
+def publication_version_key(value: str) -> tuple[int, ...]:
+    # These adapters emit numeric versions, optionally followed by a weekly date.
+    # Keep publication portable: it runs on Ubuntu without Arch's vercmp.
+    if not re.fullmatch(r"\d+(?:\.\d+)*(?:_\d+(?:\.\d+)*)?", value):
+        raise MaintenanceError("Unsupported version in publication report")
+    return tuple(int(part) for part in re.split(r"[._]", value))
+
+
 def validate_candidate(candidate: dict, config: dict) -> None:
     fields = candidate.get("assignments", {})
     if set(fields) != set(config["assignments"]) or fields.get("pkgver") != candidate.get("version"):

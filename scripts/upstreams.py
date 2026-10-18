@@ -1,7 +1,11 @@
 """Resolve first-party releases. This module never reads or contacts AUR."""
 
 import json
+import hashlib
+from pathlib import Path
 import re
+import subprocess
+import tempfile
 from datetime import datetime
 from html import unescape
 from urllib.parse import urljoin
@@ -152,6 +156,61 @@ def debian(config: dict, *, indices=None) -> dict:
                      prerelease=config.get("prerelease", False))
 
 
+def verify_release_signature(package: Path, config: dict, release: bytes, signature: bytes) -> None:
+    fingerprint = config["signing_key"]
+    if not re.fullmatch(r"[A-F0-9]{40}", fingerprint):
+        raise MaintenanceError("Invalid pinned repository signing key fingerprint")
+    key = package / "keys" / "pgp" / f"{fingerprint}.asc"
+    if not key.is_file() or key.is_symlink():
+        raise MaintenanceError("Missing reviewed upstream signing key")
+    # An isolated disposable keyring never changes the runner's or user's keyring.
+    with tempfile.TemporaryDirectory(prefix="far-signature-") as directory:
+        home = Path(directory)
+        release_path, signature_path = home / "Release", home / "Release.gpg"
+        release_path.write_bytes(release)
+        signature_path.write_bytes(signature)
+        command = ["gpg", "--no-options", "--homedir", directory, "--batch", "--no-auto-key-retrieve"]
+        imported = subprocess.run([*command, "--import", str(key.resolve())], capture_output=True, check=False, timeout=30)
+        if imported.returncode:
+            raise MaintenanceError("Could not load the reviewed upstream signing key")
+        verified = subprocess.run([*command, "--status-fd", "1", "--verify", str(signature_path), str(release_path)],
+                                  capture_output=True, text=True, check=False, timeout=30)
+        signatures = [line.split()[2:] for line in verified.stdout.splitlines() if line.startswith("[GNUPG:] VALIDSIG ")]
+        if verified.returncode or not any(fingerprint in fields for fields in signatures):
+            raise MaintenanceError("Upstream Release signature failed or used an unreviewed signing key")
+
+
+def verify_index(release: bytes, data: bytes, path: str) -> None:
+    section = False
+    matches = []
+    for line in release.decode().splitlines():
+        if line == "SHA256:":
+            section = True
+        elif line and not line[0].isspace():
+            section = False
+        elif section:
+            fields = line.split()
+            if len(fields) == 3 and fields[2] == path:
+                matches.append(fields)
+    if len(matches) != 1:
+        raise MaintenanceError("Signed Release must identify exactly one package index")
+    digest, size, _ = matches[0]
+    if not size.isdigit() or int(size) != len(data) or hashlib.sha256(data).hexdigest() != digest:
+        raise MaintenanceError("Package index does not match the signed Release checksum and size")
+
+
+def signed_debian(package: Path, config: dict) -> dict:
+    release = fetch(config["release_url"], config)
+    signature = fetch(config["release_url"] + ".gpg", config)
+    verify_release_signature(package, config, release, signature)
+    indices = {}
+    for entry in config["sources"]:
+        data = fetch(entry["index_url"], config)
+        verify_index(release, data, entry["release_path"])
+        indices[entry["index_url"]] = data
+    return debian(config, indices=indices)
+
+
 def sublime(config: dict) -> dict:
     page = fetch(config["release_url"], config).decode()
     text = unescape(re.sub(r"<[^>]+>", " ", page))
@@ -182,7 +241,7 @@ def discover(package, config: dict, recipe: str) -> dict:
     if config["mode"] == "freecad-weekly":
         return freecad_weekly(config, recipe)
     if config["mode"] == "debian":
-        return debian(config)
+        return signed_debian(package, config) if config.get("signing_key") else debian(config)
     if config["mode"] == "sublime":
         return sublime(config)
     if config["mode"] == "saleae":

@@ -35,7 +35,7 @@ jobs:
       report: ${{ steps.prepare.outputs.report }}
     steps:
       - name: Install metadata tools
-        run: pacman -Syu --noconfirm --needed python git shellcheck
+        run: pacman -Syu --noconfirm --needed python git gnupg shellcheck
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.base-sha }}

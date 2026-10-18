@@ -4,9 +4,9 @@ Arch recipe imported from [AUR](https://aur.archlinux.org/packages/spotify), ini
 
 ## Package policy
 
-The AUR recipe follows Spotify’s testing repository, as its comments explain. FAR explicitly uses **wget for HTTP and HTTPS resource downloads** through PKGBUILD `DLAGENTS`, with `wget` in `makedepends`. The signed Release → Packages → Debian payload verification chain is retained, including the documented mutable-metadata checksum exceptions.
+Tracks Spotify’s testing repository directly, preserving the initial recipe’s release channel. FAR explicitly uses **wget for HTTP and HTTPS resource downloads** through PKGBUILD `DLAGENTS`, with `wget` in `makedepends`. The signed Release → Packages → Debian payload verification chain is retained, including the documented mutable-metadata checksum exceptions.
 
-Import the reviewed Spotify signing key locally when makepkg requests it: `gpg --import packages/spotify/keys/pgp/E1096BCBFF6D418796DE78515384CE82BA52C83A.asc` (from the repository root). No signing keys are imported by CI.
+Import the reviewed Spotify signing key locally when makepkg requests it: `gpg --import packages/spotify/keys/pgp/E1096BCBFF6D418796DE78515384CE82BA52C83A.asc` (from the repository root). CI verifies metadata using this reviewed key in an isolated temporary keyring; it never modifies your local keyring.
 
 The directory and package base retain AUR's naming. The full declared architecture list is retained, including x86_64. Read `PKGBUILD` and `.SRCINFO` for current runtime, build, and optional dependencies.
 
@@ -22,8 +22,8 @@ Or enter this directory and run `makepkg -si`; makepkg builds locally and pacman
 
 ## Maintenance
 
-`.aur.json` records the current AUR revision and the SHA-256 hashes of the maintained recipe/support files. `.SRCINFO` is regenerated locally. Scheduled updates propose AUR changes, including packaging changes at the same version, as a PR. Upstream source checksums and signature verification are retained and checked by makepkg on your machine. GitHub does not download all vendor payloads or build this package.
+FAR reads Spotify's first-party testing repository directly over HTTPS. It verifies `Release.gpg` with the pinned, committed Spotify key, checks the `Packages` index against the signed Release SHA-256 and size, selects `spotify-client` for amd64, then downloads and verifies the Debian payload against its SHA-512 and size. The full vendor commit suffix is retained in `_commit`, and `epoch=1` is preserved.
 
-`far.patch` records FAR's local changes and is reapplied to every new snapshot. A conflict stops the update for manual review.
+A changed signing key requires manual review and an explicit committed key update. CI does not fetch or trust new keys automatically. The isolated temporary keyring is discarded after discovery. Spotify's PKGBUILD continues to use **wget** for HTTP and HTTPS downloads on your machine and retains makepkg's signature verification and the signed metadata-to-payload verification chain. Mutable Release and Packages checksum exceptions remain intentional.
 
-AUR updates depend on the AUR maintainer publishing a new recipe. Manual/runtime verification belongs on the local machine; a passing metadata check does not establish a successful build or launch.
+AUR is credited only for the initial import. FAR owns the recipe, launchers, license, signing key, and install policy. Update PRs change only `PKGBUILD` and generated `.SRCINFO`; downloads are discarded and no package is built or uploaded. Review the diff and test desktop/protocol integration locally. A recipe can fail to build if Spotify has replaced its mutable repository metadata since the update PR; refresh to the current reviewed release in that case.

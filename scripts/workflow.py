@@ -96,8 +96,8 @@ def apply_payload(package: Path, patch: bytes, report: dict, body_path: Path) ->
     if not aur:
         current = assignment((package / "PKGBUILD").read_text(), "pkgver")
         if upstream:
-            from far_upstream import compare_versions
-            advances = compare_versions(report["version"], current) > 0
+            from far_upstream import publication_version_key
+            advances = publication_version_key(report["version"]) > publication_version_key(current)
         else:
             advances = version_key(report["version"]) > version_key(current)
         if current != report.get("old_version") or not advances:

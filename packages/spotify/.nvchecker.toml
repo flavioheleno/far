@@ -1,4 +1,19 @@
 [spotify]
-source = "aur"
-aur = "spotify"
-use_last_modified = true
+source = "upstream"
+mode = "debian"
+hosts = ["repository.spotify.com"]
+assignments = ["pkgver", "_commit", "_url"]
+package = "spotify-client"
+base_url = "https://repository.spotify.com/"
+release_url = "https://repository.spotify.com/dists/testing/Release"
+signing_key = "E1096BCBFF6D418796DE78515384CE82BA52C83A"
+prerelease = true
+
+[[spotify.sources]]
+variable = "_url"
+array = "sha512sums"
+index = 0
+algorithm = "sha512"
+architecture = "amd64"
+index_url = "https://repository.spotify.com/dists/testing/non-free/binary-amd64/Packages"
+release_path = "non-free/binary-amd64/Packages"

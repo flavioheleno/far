@@ -66,6 +66,9 @@ class IntegrityTests(unittest.TestCase):
     def test_arch_version_comparison_preserves_dated_builds(self):
         self.assertGreater(upstream.compare_versions("1.2.0_2026.10.21", "1.2.0_2026.10.14"), 0)
         self.assertLess(upstream.compare_versions("1.0", "2.0"), 0)
+        with patch.object(upstream.subprocess, "run", side_effect=AssertionError("Arch tools unavailable")):
+            self.assertGreater(upstream.publication_version_key("1.2.0_2026.10.21"),
+                               upstream.publication_version_key("1.2.0_2026.10.14"))
 
 
 class GithubDiscoveryTests(unittest.TestCase):
@@ -184,6 +187,54 @@ class VendorDiscoveryTests(unittest.TestCase):
             with patch.object(upstreams, "open_upstream", return_value=response):
                 with self.assertRaises(far.MaintenanceError):
                     upstreams.saleae(config)
+
+
+class SignedSpotifyTests(unittest.TestCase):
+    def setUp(self):
+        self.package = Path(__file__).resolve().parents[1] / "packages" / "spotify"
+        self.config = far.read_config(self.package)
+        self.index = ("Package: spotify-client\nArchitecture: amd64\nVersion: 1.3.5.300.gabcdef123456\n"
+                      "Filename: pool/non-free/s/spotify-client/spotify-client_1.3.5.300.gabcdef123456_amd64.deb\n"
+                      f"Size: {len(PAYLOAD)}\nSHA512: {hashlib.sha512(PAYLOAD).hexdigest()}\n\n").encode()
+        self.path = "non-free/binary-amd64/Packages"
+        self.release = f"SHA256:\n {hashlib.sha256(self.index).hexdigest()} {len(self.index)} {self.path}\nSHA512:\n".encode()
+
+    def test_signed_index_chain_selects_complete_spotify_build(self):
+        data = {self.config["release_url"]: self.release,
+                self.config["release_url"] + ".gpg": b"fixture signature",
+                self.config["sources"][0]["index_url"]: self.index}
+        with patch.object(upstreams, "fetch", side_effect=lambda url, config: data[url]), \
+                patch.object(upstreams, "verify_release_signature") as verify:
+            selected = upstreams.signed_debian(self.package, self.config)
+        verify.assert_called_once_with(self.package, self.config, self.release, b"fixture signature")
+        upstream.validate_candidate(selected, self.config)
+        self.assertEqual(selected["version"], "1.3.5.300")
+        self.assertEqual(selected["assignments"]["_commit"], "gabcdef123456")
+        self.assertEqual(selected["sources"][0]["digest"], hashlib.sha512(PAYLOAD).hexdigest())
+
+    def test_signed_index_hash_size_and_section_are_enforced(self):
+        upstreams.verify_index(self.release, self.index, self.path)
+        for release, index in ((self.release, self.index + b"x"), (self.release * 2, self.index),
+                               (self.release.replace(b"SHA256:", b"MD5Sum:"), self.index)):
+            with self.assertRaises(far.MaintenanceError):
+                upstreams.verify_index(release, index, self.path)
+
+    def test_bad_signature_or_unreviewed_fingerprint_is_rejected(self):
+        import subprocess
+        for code, fingerprint in ((1, self.config["signing_key"]), (0, "F" * 40)):
+            imported = subprocess.CompletedProcess([], 0, stdout=b"", stderr=b"")
+            verified = subprocess.CompletedProcess([], code, stdout=f"[GNUPG:] VALIDSIG {fingerprint} 0\n", stderr="")
+            with patch.object(upstreams.subprocess, "run", side_effect=[imported, verified]):
+                with self.assertRaisesRegex(far.MaintenanceError, "signature failed"):
+                    upstreams.verify_release_signature(self.package, self.config, self.release, b"signature")
+
+    def test_local_recipe_preserves_wget_epoch_and_signature_policy(self):
+        recipe = (self.package / "PKGBUILD").read_text()
+        self.assertIn("epoch=1", recipe)
+        for scheme in ("http", "https"):
+            self.assertIn(f"{scheme}::/usr/bin/wget", recipe)
+        self.assertIn("validpgpkeys=", recipe)
+        self.assertIn("sha512sum -c", recipe)
 
 
 if __name__ == "__main__":

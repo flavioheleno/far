@@ -119,8 +119,9 @@ An optional `GH_TOKEN` raises the GitHub API rate limit; it is not passed to
 instead of silently truncating a larger history.
 
 RTK, Tailwind CSS, FreeCAD weekly, Enpass, TablePlus, Saleae Logic 2, and
-Sublime Text development builds use the direct upstream interface. Spotify and
-Fritzing currently use the AUR source below.
+Sublime Text development builds, and Spotify use the direct upstream interface.
+Spotify verifies signed vendor metadata with its pinned key in a temporary
+keyring. Fritzing currently uses the AUR source below.
 
 For AUR sources, the updater imports a pinned Git snapshot with its recipe,
 patches, launchers, install hooks, and signing keys. It preserves the maintainer's

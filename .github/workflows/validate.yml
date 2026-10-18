@@ -22,7 +22,7 @@ jobs:
       image: archlinux:base-devel@sha256:061679925e5d5028f2df9395d441ce6c4b9accf0157ff3486c06b6962e014ef1
     steps:
       - name: Install metadata and lint tools
-        run: pacman -Syu --noconfirm --needed python git shellcheck actionlint
+        run: pacman -Syu --noconfirm --needed python git gnupg shellcheck actionlint
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
