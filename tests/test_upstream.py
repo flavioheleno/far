@@ -370,6 +370,18 @@ class UpstreamUpdateTests(unittest.TestCase):
         for package in far.package_paths(root=root):
             self.assertIn(far.read_config(package)["source"], {"github", "upstream"})
 
+    def test_subprocess_failure_in_one_package_does_not_hide_others(self):
+        failure = subprocess.CalledProcessError(1, ["vercmp"])
+        results = [failure, {"package": "spotify", "status": "up-to-date", "version": "1"}]
+        output = io.StringIO()
+        with patch.object(sys, "argv", ["update-packages", "enpass-bin", "spotify"]), \
+                patch.object(far, "update_one", side_effect=results), patch("sys.stdout", output):
+            self.assertTrue(far.update_main())
+        lines = output.getvalue().splitlines()
+        self.assertEqual(len(lines), 2)
+        self.assertIn('"status": "error"', lines[0])
+        self.assertIn('"status": "up-to-date"', lines[1])
+
 
 if __name__ == "__main__":
     unittest.main()

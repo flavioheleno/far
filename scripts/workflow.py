@@ -15,7 +15,7 @@ LIMIT = 64 * 1024
 
 
 def git(*args: str, input: bytes | None = None) -> bytes:
-    result = subprocess.run(["git", *args], cwd=ROOT, input=input, capture_output=True, check=False)
+    result = subprocess.run(["git", *args], cwd=ROOT, input=input, capture_output=True, check=False, timeout=120)
     if result.returncode:
         raise MaintenanceError(f"git {args[0]} failed: {result.stderr.decode().strip()}")
     return result.stdout

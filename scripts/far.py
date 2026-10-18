@@ -258,7 +258,7 @@ def check_main() -> int:
         try:
             check_package(package)
             print(f"{package.name}: recipe checks passed")
-        except (MaintenanceError, OSError, ValueError, TypeError, KeyError, subprocess.TimeoutExpired) as error:
+        except (MaintenanceError, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError) as error:
             failures += 1
             print(f"{package.name}: {error}", file=sys.stderr)
     return bool(failures)
@@ -284,7 +284,7 @@ def update_main() -> int:
     for package in packages:
         try:
             result = update_one(package, releases, apply=args.apply, verify_current=args.verify_current)
-        except (MaintenanceError, OSError, ValueError, TypeError, KeyError, subprocess.TimeoutExpired) as error:
+        except (MaintenanceError, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError) as error:
             result = {"package": package.name, "status": "error", "message": str(error)}
         results.append(result)
         print(json.dumps(result))
@@ -296,6 +296,6 @@ def update_main() -> int:
 def cli(entry) -> None:
     try:
         raise SystemExit(entry())
-    except (MaintenanceError, OSError, ValueError, TypeError, KeyError) as error:
+    except (MaintenanceError, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError) as error:
         print(f"far: {error}", file=sys.stderr)
         raise SystemExit(1) from error
