@@ -8,7 +8,6 @@ import re
 import subprocess
 import tempfile
 from datetime import datetime
-from html import unescape
 from urllib.parse import urljoin
 from urllib.parse import quote
 from xml.etree import ElementTree
@@ -214,19 +213,6 @@ def signed_debian(package: Path, config: dict) -> dict:
     return debian(config, indices=indices)
 
 
-def sublime(config: dict) -> dict:
-    page = fetch(config["release_url"], config).decode()
-    text = unescape(re.sub(r"<[^>]+>", " ", page))
-    builds = re.findall(r"Version:\s*Build\s+(\d+)", text)
-    if len(set(builds)) != 1:
-        raise MaintenanceError("Expected one current Sublime Text development build")
-    build = builds[0]
-    sources = [source(config, item["variable"],
-                      f"https://download.sublimetext.com/sublime_text_build_{build}_{item['architecture']}.tar.xz")
-               for item in config["sources"]]
-    return candidate(config, f"4.{build}", config["release_url"], sources, prerelease=True)
-
-
 def saleae(config: dict) -> dict:
     with open_upstream(config["endpoint"], config, method="HEAD") as response:
         url = response.geturl()
@@ -307,8 +293,6 @@ def discover(package, config: dict, recipe: str) -> dict:
         return freecad_weekly(config, recipe)
     if config["mode"] == "debian":
         return signed_debian(package, config) if config.get("signing_key") else debian(config)
-    if config["mode"] == "sublime":
-        return sublime(config)
     if config["mode"] == "saleae":
         return saleae(config)
     if config["mode"] == "fritzing":

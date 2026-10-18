@@ -13,7 +13,7 @@ from urllib.request import Request, urlopen
 
 from far import MaintenanceError, assignment, check_package, generate_srcinfo, replace_assignment
 
-MODES = {"github-assets", "freecad-weekly", "debian", "saleae", "sublime", "fritzing"}
+MODES = {"github-assets", "freecad-weekly", "debian", "saleae", "fritzing"}
 MAX_DOWNLOAD = 2 * 1024 ** 3
 
 

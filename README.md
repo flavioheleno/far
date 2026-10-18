@@ -54,7 +54,6 @@ AGENTS.md              Instructions for future repository work
 | [enpass-bin](packages/enpass-bin/) | x86_64 supported | Vendor Enpass releases |
 | [freecad-weekly-appimage](packages/freecad-weekly-appimage/) | x86_64 supported | Weekly FreeCAD builds |
 | [fritzing](packages/fritzing/) | x86_64 supported | Source-version bumps; pinned commits |
-| [sublime-text-dev](packages/sublime-text-dev/) | x86_64 supported | Sublime Text development builds |
 | [extrudo-appimage](packages/extrudo-appimage/) | x86_64 | Stable releases |
 
 ## Local build and installation
@@ -143,7 +142,6 @@ The other packages use the shared interface in `scripts/upstreams.py`:
 | TablePlus | [Vendor Linux APT repository](https://tableplus.com/download/linux), both amd64 and arm64 |
 | Enpass | [Vendor stable APT repository](https://apt.enpass.io/), amd64 |
 | Saleae Logic 2 | [Normal vendor download](https://www.saleae.com/downloads), resolved to an exact Linux x64 AppImage |
-| Sublime Text dev | [Development build announcement](https://www.sublimetext.com/dev), x64 and arm64 tarballs |
 | Fritzing | [Source-version commit history](https://github.com/fritzing/fritzing-app/commits/develop/src/version/version.cpp), checked against plist and AppStream metadata |
 
 Each configuration declares allowed HTTPS hosts, assignments, and checksum
@@ -158,8 +156,8 @@ Spotify verifies the signed Release, its Packages index, and the Debian payload
 using its pinned key in a disposable keyring. Its PKGBUILD retains **wget** for
 local downloads. TablePlus and Enpass use HTTPS repository metadata and payload
 checksums; their APT signatures are not currently authenticated by these adapters.
-Sublime and Saleae downloads are hashed over HTTPS without an independent
-signature step, matching the imported recipes' verification policy.
+Saleae downloads are hashed over HTTPS without an independent signature step,
+matching the imported recipe's verification policy.
 
 Fritzing watches source-version bump commits on the upstream `develop` branch.
 It resolves an immutable head, reads the source version, and checks a matching

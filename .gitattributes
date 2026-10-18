@@ -1,4 +1,2 @@
 # Unified diffs require context prefixes, including a space on blank lines.
 *.patch -whitespace
-# Keep this imported AUR install hook byte-for-byte identical to its snapshot.
-packages/sublime-text-dev/sublime-text-dev.install -whitespace

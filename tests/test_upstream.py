@@ -164,15 +164,6 @@ class VendorDiscoveryTests(unittest.TestCase):
         with self.assertRaisesRegex(far.MaintenanceError, "different versions"):
             upstreams.debian(config, indices=data)
 
-    def test_sublime_uses_current_headline_and_both_architectures(self):
-        config = self.config("sublime-text-dev")
-        page = b'<p>Version: <b>Build 4216</b></p><h2>Build 4214</h2>'
-        with patch.object(upstreams, "fetch", return_value=page):
-            selected = upstreams.sublime(config)
-        upstream.validate_candidate(selected, config)
-        self.assertEqual(selected["version"], "4.4216")
-        self.assertTrue(all("4216" in item["url"] for item in selected["sources"]))
-
     def test_saleae_uses_versioned_redirect_and_rejects_insider_or_foreign_downloads(self):
         config = self.config("saleae-logic2")
         class Response(io.BytesIO):
