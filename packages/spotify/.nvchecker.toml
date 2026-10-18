@@ -1,12 +1,13 @@
 [spotify]
 source = "upstream"
 mode = "debian"
-hosts = ["repository.spotify.com"]
+hosts = ["repository.spotify.com", "download.spotify.com"]
 assignments = ["pkgver", "_commit", "_url"]
 package = "spotify-client"
 base_url = "https://repository.spotify.com/"
 release_url = "https://repository.spotify.com/dists/testing/Release"
-signing_key = "E1096BCBFF6D418796DE78515384CE82BA52C83A"
+# The fetched key must match PKGBUILD validpgpkeys.
+signing_key_url = "https://download.spotify.com/debian/pubkey_5384CE82BA52C83A.gpg"
 prerelease = true
 
 [[spotify.sources]]

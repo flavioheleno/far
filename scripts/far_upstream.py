@@ -49,6 +49,12 @@ def validate_config(config: dict) -> None:
                 re.compile(source["asset_pattern"].replace("{tag}", "").replace("{version}", ""))
             except (re.error, AttributeError) as error:
                 raise MaintenanceError("Invalid asset_pattern") from error
+    if "signing_key" in config:
+        raise MaintenanceError("Pin signing keys with validpgpkeys in PKGBUILD and set signing_key_url")
+    if "signing_key_url" in config:
+        validate_url(config["signing_key_url"], config)
+        if config["mode"] != "debian" or any("release_path" not in source for source in config.get("sources", [])):
+            raise MaintenanceError("Signed Debian metadata needs signing_key_url and a release_path per source")
     if config["mode"] == "fritzing" and not re.fullmatch(r"[A-Za-z0-9._/-]+", config.get("branch", "")):
         raise MaintenanceError("Declare the upstream source-version branch")
     identities = []

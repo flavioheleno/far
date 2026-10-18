@@ -325,24 +325,57 @@ class SignedSpotifyTests(unittest.TestCase):
     def setUp(self):
         self.package = Path(__file__).resolve().parents[1] / "packages" / "spotify"
         self.config = far.read_config(self.package)
+        self.recipe = (self.package / "PKGBUILD").read_text()
+        self.key = upstreams.pinned_fingerprint(self.recipe)
         self.index = ("Package: spotify-client\nArchitecture: amd64\nVersion: 1.3.5.300.gabcdef123456\n"
                       "Filename: pool/non-free/s/spotify-client/spotify-client_1.3.5.300.gabcdef123456_amd64.deb\n"
                       f"Size: {len(PAYLOAD)}\nSHA512: {hashlib.sha512(PAYLOAD).hexdigest()}\n\n").encode()
         self.path = "non-free/binary-amd64/Packages"
         self.release = f"SHA256:\n {hashlib.sha256(self.index).hexdigest()} {len(self.index)} {self.path}\nSHA512:\n".encode()
 
+    def gpg(self, verified, *, primary=None):
+        # Mocked gpg calls: import, list the imported keys, verify.
+        listing = f"pub:u:4096:1:5384CE82BA52C83A:0:::::scESC:\nfpr:::::::::{primary or self.key}:\n"
+        return patch.object(upstreams.subprocess, "run", side_effect=[
+            subprocess.CompletedProcess([], 0, stdout=b"", stderr=b""),
+            subprocess.CompletedProcess([], 0, stdout=listing, stderr=""), verified])
+
+    def verify(self):
+        upstreams.verify_release_signature(self.key, b"vendor key", self.release, b"signature")
+
     def test_signed_index_chain_selects_complete_spotify_build(self):
-        data = {self.config["release_url"]: self.release,
+        data = {self.config["signing_key_url"]: b"vendor key",
+                self.config["release_url"]: self.release,
                 self.config["release_url"] + ".gpg": b"fixture signature",
                 self.config["sources"][0]["index_url"]: self.index}
-        with patch.object(upstreams, "fetch", side_effect=lambda url, config: data[url]), \
+        with patch.object(upstreams, "fetch", side_effect=lambda url, config, **kwargs: data[url]), \
                 patch.object(upstreams, "verify_release_signature") as verify:
-            selected = upstreams.signed_debian(self.package, self.config)
-        verify.assert_called_once_with(self.package, self.config, self.release, b"fixture signature")
+            selected = upstreams.signed_debian(self.config, self.recipe)
+        verify.assert_called_once_with("E1096BCBFF6D418796DE78515384CE82BA52C83A", b"vendor key",
+                                       self.release, b"fixture signature")
         upstream.validate_candidate(selected, self.config)
         self.assertEqual(selected["version"], "1.3.5.300")
         self.assertEqual(selected["assignments"]["_commit"], "gabcdef123456")
         self.assertEqual(selected["sources"][0]["digest"], hashlib.sha512(PAYLOAD).hexdigest())
+
+    def test_fingerprint_comes_from_one_literal_validpgpkeys_entry(self):
+        key = "A" * 40
+        self.assertEqual(upstreams.pinned_fingerprint(f"validpgpkeys=('{key}') # Vendor\n"), key)
+        for recipe in ("", f"validpgpkeys=('{key}' '{'B' * 40}')\n", "validpgpkeys=('ABCDEF')\n",
+                       f"validpgpkeys=('{key}')\nvalidpgpkeys=('{key}')\n"):
+            with self.subTest(recipe=recipe), self.assertRaises(far.MaintenanceError):
+                upstreams.pinned_fingerprint(recipe)
+
+    def test_signing_configuration_rejects_committed_keys_and_foreign_hosts(self):
+        for change in ({"signing_key": self.key}, {"signing_key_url": "https://keys.example/key.gpg"},
+                       {"signing_key_url": "http://download.spotify.com/key.gpg"}):
+            with self.subTest(change=change), self.assertRaises(far.MaintenanceError):
+                upstream.validate_config(self.config | change)
+
+    def test_fetched_key_must_match_the_pinned_fingerprint(self):
+        verified = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        with self.gpg(verified, primary="F" * 40), self.assertRaisesRegex(far.MaintenanceError, "validpgpkeys"):
+            self.verify()
 
     def test_signed_index_hash_size_and_section_are_enforced(self):
         upstreams.verify_index(self.release, self.index, self.path)
@@ -352,16 +385,13 @@ class SignedSpotifyTests(unittest.TestCase):
                 upstreams.verify_index(release, index, self.path)
 
     def test_bad_signature_or_unreviewed_fingerprint_is_rejected(self):
-        import subprocess
-        for code, fingerprint in ((1, self.config["signing_key"]), (0, "F" * 40)):
-            imported = subprocess.CompletedProcess([], 0, stdout=b"", stderr=b"")
+        for code, fingerprint in ((1, self.key), (0, "F" * 40)):
             verified = subprocess.CompletedProcess([], code, stdout=f"[GNUPG:] VALIDSIG {fingerprint} 0\n", stderr="")
-            with patch.object(upstreams.subprocess, "run", side_effect=[imported, verified]):
-                with self.assertRaisesRegex(far.MaintenanceError, "signature failed"):
-                    upstreams.verify_release_signature(self.package, self.config, self.release, b"signature")
+            with self.gpg(verified), self.assertRaisesRegex(far.MaintenanceError, "signature failed"):
+                self.verify()
 
     def test_co_signature_from_a_retired_key_is_ignored_but_other_failures_fail(self):
-        key = self.config["signing_key"]
+        key = self.key
         good = (f"[GNUPG:] NEWSIG\n[GNUPG:] GOODSIG {key[-16:]} Vendor\n"
                 f"[GNUPG:] VALIDSIG {key} 2026-01-01 0 0 4 0 1 10 00 {key}\n")
         retired = ("[GNUPG:] NEWSIG\n[GNUPG:] ERRSIG 6F7565879798C2FC 1 8 00 0 9 " + "B" * 40 +
@@ -378,15 +408,13 @@ class SignedSpotifyTests(unittest.TestCase):
             (retired + exit_failure, False),
         )
         for stdout, accepted in cases:
-            imported = subprocess.CompletedProcess([], 0, stdout=b"", stderr=b"")
             verified = subprocess.CompletedProcess([], 2, stdout=stdout, stderr="")
-            with self.subTest(stdout=stdout), \
-                    patch.object(upstreams.subprocess, "run", side_effect=[imported, verified]):
+            with self.subTest(stdout=stdout), self.gpg(verified):
                 if accepted:
-                    upstreams.verify_release_signature(self.package, self.config, self.release, b"signature")
+                    self.verify()
                 else:
                     with self.assertRaises(far.MaintenanceError):
-                        upstreams.verify_release_signature(self.package, self.config, self.release, b"signature")
+                        self.verify()
 
     def test_local_recipe_preserves_wget_epoch_and_signature_policy(self):
         recipe = (self.package / "PKGBUILD").read_text()

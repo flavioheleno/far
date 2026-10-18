@@ -178,7 +178,7 @@ All packages track first-party sources through `scripts/upstreams.py`:
 | RTK | [GitHub stable releases](https://github.com/rtk-ai/rtk/releases) |
 | Tailwind CSS | [GitHub stable releases](https://github.com/tailwindlabs/tailwindcss/releases) |
 | FreeCAD weekly | [GitHub weekly releases](https://github.com/FreeCAD/FreeCAD/releases); base version from `version.json` at the selected tag |
-| Spotify | [Vendor testing repository](https://repository.spotify.com/dists/testing/Release), authenticated with the committed signing key |
+| Spotify | [Vendor testing repository](https://repository.spotify.com/dists/testing/Release), authenticated with the key pinned in `validpgpkeys` |
 | TablePlus | [Vendor Linux APT repository](https://tableplus.com/download/linux), both amd64 and arm64 |
 | Enpass | [Vendor stable APT repository](https://apt.enpass.io/), amd64 |
 | Saleae Logic 2 | [Normal vendor download](https://www.saleae.com/downloads), resolved to an exact Linux x64 AppImage |
@@ -194,16 +194,19 @@ times; other HTTP errors fail immediately. Local
 supporting files and recipe customizations remain in FAR; the updater changes
 only the version/source literals, payload checksums, `pkgrel`, and `.SRCINFO`.
 
-Spotify verifies the signed Release, its Packages index, and the Debian payload
-using its pinned key in a disposable keyring. A Release file is accepted only
-with a good, unexpired detached signature from the pinned key. Verification fails
-closed: the only tolerated extra is a co-signature from a key that is not in the
-keyring (such as a vendor's retired key); bad, expired, or revoked signatures,
-embedded plaintext, and trailing data are rejected. Its PKGBUILD retains **wget** for
-local downloads. TablePlus and Enpass use HTTPS repository metadata and payload
-checksums; their APT signatures are not currently authenticated by these adapters.
-Saleae downloads are hashed over HTTPS without an independent signature step,
-matching the imported recipe's verification policy.
+Spotify verifies the signed Release, its Packages index, and the Debian payload.
+Its signing key is pinned only by fingerprint, in the PKGBUILD's `validpgpkeys`;
+FAR stores no key files. Each run fetches the vendor's published key into a
+disposable keyring and stops if it does not match the pinned fingerprint. A
+Release file is accepted only with a good, unexpired detached signature from the
+pinned key. Verification fails closed: the only tolerated extra is a
+co-signature from a key that is not in the keyring (such as a vendor's retired
+key); bad, expired, or revoked signatures, embedded plaintext, and trailing data
+are rejected. Spotify's PKGBUILD retains **wget** for local downloads. TablePlus and
+Enpass use HTTPS repository metadata and payload checksums; their APT signatures
+are not currently authenticated by these adapters. Saleae downloads are hashed
+over HTTPS without an independent signature step, matching the imported recipe's
+verification policy.
 
 Fritzing watches source-version bump commits on the upstream `develop` branch.
 It resolves an immutable head, reads the source version, and checks a matching
@@ -325,7 +328,10 @@ For the shared upstream interface:
    by `source` arrays. Map every remote payload/license to its exact checksum
    array/index, algorithm, and adapter-specific asset or repository metadata.
    GitHub release modes (`github-assets`, `freecad-weekly`) also require an
-   explicit `include_prereleases` boolean.
+   explicit `include_prereleases` boolean. Signed `debian` repositories set
+   `signing_key_url` to the vendor's published key (an allowed host), give each
+   source a `release_path`, and pin the key with one `validpgpkeys` fingerprint
+   in `PKGBUILD`.
 3. Reuse a discovery mode in `scripts/upstreams.py`, or add a focused mode with
    offline fixtures for selection, integrity, failure handling, and publication.
    Keep shared download, apply, rollback, and literal publication validation in

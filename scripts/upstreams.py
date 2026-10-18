@@ -5,6 +5,7 @@ import hashlib
 from pathlib import Path
 import plistlib
 import re
+import shlex
 import subprocess
 import tempfile
 from datetime import datetime
@@ -174,23 +175,40 @@ def debian(config: dict, *, indices=None) -> dict:
                      prerelease=config.get("prerelease", False))
 
 
-def verify_release_signature(package: Path, config: dict, release: bytes, signature: bytes) -> None:
-    fingerprint = config["signing_key"]
-    if not re.fullmatch(r"[A-F0-9]{40}", fingerprint):
-        raise MaintenanceError("Invalid pinned repository signing key fingerprint")
-    key = package / "keys" / "pgp" / f"{fingerprint}.asc"
-    if not key.is_file() or key.is_symlink():
-        raise MaintenanceError("Missing reviewed upstream signing key")
+def pinned_fingerprint(recipe: str) -> str:
+    # Read the literal makepkg array without evaluating the recipe.
+    matches = re.findall(r"^validpgpkeys=\((.*?)\)", recipe, re.M | re.S)
+    if len(matches) != 1:
+        raise MaintenanceError("Declare one literal validpgpkeys array in PKGBUILD")
+    keys = shlex.split(matches[0], comments=True)
+    if len(keys) != 1 or not re.fullmatch(r"[A-F0-9]{40}", keys[0]):
+        raise MaintenanceError("validpgpkeys must pin exactly one full signing-key fingerprint")
+    return keys[0]
+
+
+def verify_release_signature(fingerprint: str, key: bytes, release: bytes, signature: bytes) -> None:
     # An isolated disposable keyring never changes the runner's or user's keyring.
     with tempfile.TemporaryDirectory(prefix="far-signature-") as directory:
         home = Path(directory)
-        release_path, signature_path = home / "Release", home / "Release.gpg"
+        key_path, release_path, signature_path = home / "vendor-key", home / "Release", home / "Release.gpg"
+        key_path.write_bytes(key)
         release_path.write_bytes(release)
         signature_path.write_bytes(signature)
         command = ["gpg", "--no-options", "--homedir", directory, "--batch", "--no-auto-key-retrieve"]
-        imported = subprocess.run([*command, "--import", str(key.resolve())], capture_output=True, check=False, timeout=30)
+        imported = subprocess.run([*command, "--import", str(key_path)], capture_output=True, check=False, timeout=30)
         if imported.returncode:
-            raise MaintenanceError("Could not load the reviewed upstream signing key")
+            raise MaintenanceError("Could not load the vendor signing key")
+        listed = subprocess.run([*command, "--with-colons", "--list-keys"], capture_output=True, text=True,
+                                check=False, timeout=30)
+        primaries, previous = set(), ""
+        for line in listed.stdout.splitlines():
+            fields = line.split(":")
+            if fields[0] == "fpr" and previous == "pub" and len(fields) > 9:
+                primaries.add(fields[9])
+            previous = fields[0]
+        # The fetched key is untrusted; only the fingerprint pinned in PKGBUILD is.
+        if listed.returncode or fingerprint not in primaries:
+            raise MaintenanceError("Vendor signing key does not match PKGBUILD validpgpkeys; review a key rotation")
         verified = subprocess.run([*command, "--status-fd", "1", "--verify", str(signature_path), str(release_path)],
                                   capture_output=True, text=True, check=False, timeout=30)
         status = [line.split()[1:] for line in verified.stdout.splitlines() if line.startswith("[GNUPG:] ")]
@@ -232,10 +250,12 @@ def verify_index(release: bytes, data: bytes, path: str) -> None:
         raise MaintenanceError("Package index does not match the signed Release checksum and size")
 
 
-def signed_debian(package: Path, config: dict) -> dict:
+def signed_debian(config: dict, recipe: str) -> dict:
+    fingerprint = pinned_fingerprint(recipe)
+    key = fetch(config["signing_key_url"], config, limit=1024 ** 2)
     release = fetch(config["release_url"], config)
     signature = fetch(config["release_url"] + ".gpg", config)
-    verify_release_signature(package, config, release, signature)
+    verify_release_signature(fingerprint, key, release, signature)
     indices = {}
     for entry in config["sources"]:
         data = fetch(entry["index_url"], config)
@@ -325,7 +345,7 @@ def discover(package, config: dict, recipe: str, *, releases=None) -> dict:
     if config["mode"] == "freecad-weekly":
         return freecad_weekly(config, recipe, releases=releases)
     if config["mode"] == "debian":
-        return signed_debian(package, config) if config.get("signing_key") else debian(config)
+        return signed_debian(config, recipe) if config.get("signing_key_url") else debian(config)
     if config["mode"] == "saleae":
         return saleae(config)
     if config["mode"] == "fritzing":
