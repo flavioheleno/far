@@ -181,9 +181,18 @@ def verify_release_signature(package: Path, config: dict, release: bytes, signat
         good = {fields[1][-16:] for fields in status if fields[0] == "GOODSIG" and len(fields) > 1}
         trusted = any(fields[0] == "VALIDSIG" and fingerprint in fields[1:] and fields[1][-16:] in good
                       for fields in status if len(fields) > 1)
-        # Vendors may co-sign with retired keys. Their missing-key ERRSIG makes gpg exit
-        # nonzero, so accept that, but never a bad, expired, or revoked signature.
-        rejected = any(fields[0] in {"BADSIG", "EXPSIG", "EXPKEYSIG", "REVKEYSIG"} for fields in status)
+        # Fail closed. Vendors may co-sign with retired keys, whose missing-key ERRSIG
+        # (rc 9) makes gpg exit nonzero; that is the only tolerated failure. Embedded
+        # plaintext, extra data, and bad, expired, or revoked signatures always fail.
+        rejected = any(fields[0] in {"PLAINTEXT", "NODATA", "ERROR", "BADARMOR", "UNEXPECTED", "BADSIG",
+                                     "EXPSIG", "EXPKEYSIG", "REVKEYSIG", "KEYEXPIRED", "KEYREVOKED"}
+                       for fields in status)
+        if verified.returncode:
+            signatures = sum(fields[0] == "NEWSIG" for fields in status)
+            missing = [fields for fields in status if fields[0] == "ERRSIG"]
+            if (any(len(fields) < 7 or fields[6] != "9" for fields in missing)
+                    or signatures != sum(fields[0] == "GOODSIG" for fields in status) + len(missing)):
+                rejected = True
         if rejected or not trusted:
             raise MaintenanceError("Upstream Release signature failed or used an unreviewed signing key")
 

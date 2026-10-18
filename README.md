@@ -198,8 +198,10 @@ only the version/source literals, payload checksums, `pkgrel`, and `.SRCINFO`.
 
 Spotify verifies the signed Release, its Packages index, and the Debian payload
 using its pinned key in a disposable keyring. A Release file is accepted only
-with a good, unexpired signature from the pinned key; co-signatures from other
-keys are ignored unless they are bad, expired, or revoked. Its PKGBUILD retains **wget** for
+with a good, unexpired detached signature from the pinned key. Verification fails
+closed: the only tolerated extra is a co-signature from a key that is not in the
+keyring (such as a vendor's retired key); bad, expired, or revoked signatures,
+embedded plaintext, and trailing data are rejected. Its PKGBUILD retains **wget** for
 local downloads. TablePlus and Enpass use HTTPS repository metadata and payload
 checksums; their APT signatures are not currently authenticated by these adapters.
 Saleae downloads are hashed over HTTPS without an independent signature step,

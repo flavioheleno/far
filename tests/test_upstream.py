@@ -232,13 +232,24 @@ class SignedSpotifyTests(unittest.TestCase):
                 with self.assertRaisesRegex(far.MaintenanceError, "signature failed"):
                     upstreams.verify_release_signature(self.package, self.config, self.release, b"signature")
 
-    def test_co_signature_from_a_retired_key_is_ignored_but_bad_signatures_fail(self):
+    def test_co_signature_from_a_retired_key_is_ignored_but_other_failures_fail(self):
         key = self.config["signing_key"]
-        good = f"[GNUPG:] GOODSIG {key[-16:]} Vendor\n[GNUPG:] VALIDSIG {key} 2026-01-01 0 0 4 0 1 10 00 {key}\n"
-        retired = "[GNUPG:] ERRSIG 6F7565879798C2FC 1 8 00 0 9 " + "B" * 40 + "\n"
-        for stdout, accepted in ((good + retired, True), (good + "[GNUPG:] BADSIG 6F7565879798C2FC Old\n", False),
-                                 (f"[GNUPG:] EXPKEYSIG {key[-16:]} Vendor\n" + good.split("\n")[1], False),
-                                 (retired, False)):
+        good = (f"[GNUPG:] NEWSIG\n[GNUPG:] GOODSIG {key[-16:]} Vendor\n"
+                f"[GNUPG:] VALIDSIG {key} 2026-01-01 0 0 4 0 1 10 00 {key}\n")
+        retired = ("[GNUPG:] NEWSIG\n[GNUPG:] ERRSIG 6F7565879798C2FC 1 8 00 0 9 " + "B" * 40 +
+                   "\n[GNUPG:] NO_PUBKEY 6F7565879798C2FC\n")
+        exit_failure = "[GNUPG:] FAILURE gpg-exit 33554433\n"
+        cases = (
+            (good + retired + exit_failure, True),
+            # A non-missing-key error (rc 4: unknown algorithm) is not tolerated.
+            (good + retired.replace(" 0 9 ", " 0 4 ") + exit_failure, False),
+            (good + "[GNUPG:] NEWSIG\n[GNUPG:] BADSIG 6F7565879798C2FC Old\n" + exit_failure, False),
+            # A valid detached signature followed by extra data must not pass.
+            ("[GNUPG:] NODATA 3\n" + good + exit_failure, False),
+            (f"[GNUPG:] NEWSIG\n[GNUPG:] EXPKEYSIG {key[-16:]} Vendor\n" + good.split("\n")[2] + "\n", False),
+            (retired + exit_failure, False),
+        )
+        for stdout, accepted in cases:
             imported = subprocess.CompletedProcess([], 0, stdout=b"", stderr=b"")
             verified = subprocess.CompletedProcess([], 2, stdout=stdout, stderr="")
             with self.subTest(stdout=stdout), \
