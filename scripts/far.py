@@ -78,8 +78,12 @@ def version_key(version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in version.split("."))
 
 
+def literal_pattern(name: str) -> re.Pattern:
+    return re.compile(rf"^{re.escape(name)}=(?:'([^'\n]*)'|\"([^\"\n]*)\"|([^\s'\"]+))$", re.M)
+
+
 def assignment(text: str, name: str) -> str:
-    matches = re.findall(rf"^{re.escape(name)}=(?:'([^'\n]*)'|\"([^\"\n]*)\"|([^\s'\"]+))$", text, re.M)
+    matches = literal_pattern(name).findall(text)
     if len(matches) != 1:
         raise MaintenanceError(f"Expected one literal {name} assignment")
     value = next((value for value in matches[0] if value), "")
@@ -91,8 +95,13 @@ def assignment(text: str, name: str) -> str:
 def replace_assignment(text: str, name: str, value: str) -> str:
     if not re.fullmatch(r"[A-Za-z0-9._+-]+", value):
         raise MaintenanceError(f"Unsafe {name} value: {value!r}")
+    return set_assignment(text, name, value)
+
+
+def set_assignment(text: str, name: str, value: str) -> str:
+    # Rewrite only the single literal line assignment() validated; leave computed ones alone.
     assignment(text, name)
-    return re.sub(rf"^{re.escape(name)}=.*$", lambda _: f"{name}='{value}'", text, flags=re.M)
+    return literal_pattern(name).sub(lambda _: f"{name}='{value}'", text, count=1)
 
 
 def source_hash(text: str) -> str:

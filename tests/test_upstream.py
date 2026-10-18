@@ -57,6 +57,15 @@ class IntegrityTests(unittest.TestCase):
         self.assertEqual(far.assignment(rendered, "pkgver"), "1.1")
         self.assertEqual(far.assignment(rendered, "pkgrel"), "1")
 
+    def test_literal_rewrite_leaves_computed_assignments_untouched(self):
+        recipe = RECIPE + "_url=$(printf %s \"$base\")\n"
+        rendered = upstream.set_literal(recipe, "_url", "https://vendor.example/1.1.deb")
+        self.assertIn("_url='https://vendor.example/1.1.deb'\n", rendered)
+        self.assertIn("_url=$(printf %s \"$base\")\n", rendered)
+        rendered = far.replace_assignment(recipe + "pkgrel=$((1 + 1))\n", "pkgrel", "1")
+        self.assertIn("pkgrel='1'\n", rendered)
+        self.assertIn("pkgrel=$((1 + 1))\n", rendered)
+
     def test_publication_checks_literals_without_executing_recipe(self):
         rendered = upstream.render_recipe(RECIPE, candidate())
         report = candidate() | {"old_version": "1.0"}

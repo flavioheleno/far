@@ -11,7 +11,7 @@ from urllib.error import URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-from far import MaintenanceError, assignment, check_package, generate_srcinfo, replace_assignment
+from far import MaintenanceError, assignment, check_package, generate_srcinfo, replace_assignment, set_assignment
 
 MODES = {"github-assets", "freecad-weekly", "debian", "saleae", "fritzing"}
 MAX_DOWNLOAD = 2 * 1024 ** 3
@@ -100,8 +100,7 @@ def replace_checksum(recipe: str, source: dict, checksum: str) -> str:
 def set_literal(recipe: str, name: str, value: str) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9._+:/?=&%~-]+", value):
         raise MaintenanceError(f"Unsafe literal assignment: {name}")
-    assignment(recipe, name)
-    return re.sub(rf"^{re.escape(name)}=.*$", lambda _: f"{name}='{value}'", recipe, flags=re.M)
+    return set_assignment(recipe, name, value)
 
 
 def compare_versions(new: str, old: str) -> int:
