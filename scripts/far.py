@@ -44,6 +44,10 @@ def read_config(package: Path) -> dict:
     if set(data) != {package.name}:
         raise MaintenanceError(".nvchecker.toml must contain exactly its pkgbase table")
     config = data[package.name]
+    if config.get("source") == "upstream":
+        from far_upstream import validate_config
+        validate_config(config)
+        return config
     if config.get("source") == "aur":
         if config.get("aur") != package.name:
             raise MaintenanceError("AUR source name must match the package directory and pkgbase")
@@ -120,7 +124,8 @@ def generate_srcinfo(package: Path) -> str:
 def check_package(package: Path) -> None:
     config = read_config(package)
     required = ["PKGBUILD", ".SRCINFO", ".nvchecker.toml", "README.md"]
-    required.append(".aur.json" if config["source"] == "aur" else "update.py")
+    if config["source"] != "upstream":
+        required.append(".aur.json" if config["source"] == "aur" else "update.py")
     for name in required:
         if not (package / name).is_file() or (package / name).is_symlink():
             raise MaintenanceError(f"Missing regular package file: {name}")
@@ -197,6 +202,11 @@ def download_hash(candidate: dict) -> str:
 def update_one(package: Path, releases: list[dict] | None = None, *,
                apply: bool = False, verify_current: bool = False) -> dict:
     config = read_config(package)
+    if config["source"] == "upstream":
+        if releases is not None:
+            raise MaintenanceError("--releases-json applies only to the legacy GitHub AppImage adapters")
+        from far_upstream import update_upstream
+        return update_upstream(package, config, apply=apply, verify_current=verify_current)
     if config["source"] == "aur":
         if releases is not None or verify_current:
             raise MaintenanceError("--releases-json and --verify-current apply only to direct GitHub sources")

@@ -100,6 +100,14 @@ Both commands accept one or more package bases;
 omitting them selects all packages. Failures are reported independently and
 produce a nonzero exit code.
 
+The `source = "upstream"` adapter interface supports direct vendor discovery,
+multiple architectures, and SHA-256/SHA-512 source arrays. Configuration declares
+allowed HTTPS hosts, literal assignments, and exact checksum slots. Shared
+transport hashes downloads in memory with size limits; publication inspects
+literal recipe values without executing the recipe. These adapters use Arch's
+`vercmp`, including dated package versions. `--verify-current` also forces
+payload verification for this interface.
+
 For direct GitHub sources, `update.py` selects the release and exact asset. New
 assets are downloaded and hashed. Already-current recipes use GitHub's asset digest to detect upstream changes
 without downloading the asset again. Use `--verify-current` to force a fresh

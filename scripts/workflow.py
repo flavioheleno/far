@@ -74,10 +74,18 @@ def prepare(package: Path, output: Path) -> None:
 
 def apply_payload(package: Path, patch: bytes, report: dict, body_path: Path) -> dict[str, str]:
     """Validate data and apply a patch, without evaluating the updated recipe."""
-    aur = read_config(package)["source"] == "aur"
+    config = read_config(package)
+    aur = config["source"] == "aur"
+    upstream = config["source"] == "upstream"
     if aur:
         from far_aur import publication_body, publication_paths
         allowed = publication_paths(package, report)
+    elif upstream:
+        from far_upstream import validate_candidate
+        if report.get("package") != package.name or report.get("status") != "updated" or report.get("source") != "upstream":
+            raise MaintenanceError("Invalid upstream update report")
+        validate_candidate(report, config)
+        allowed = allowed_paths(package)
     elif (report.get("package") != package.name or report.get("status") != "updated"
             or not re.fullmatch(r"[a-f0-9]{64}", report.get("sha256", ""))
             or not re.fullmatch(r"[A-Za-z0-9._+-]+", report.get("asset", ""))
@@ -87,7 +95,12 @@ def apply_payload(package: Path, patch: bytes, report: dict, body_path: Path) ->
         allowed = allowed_paths(package)
     if not aur:
         current = assignment((package / "PKGBUILD").read_text(), "pkgver")
-        if current != report.get("old_version") or version_key(report["version"]) <= version_key(current):
+        if upstream:
+            from far_upstream import compare_versions
+            advances = compare_versions(report["version"], current) > 0
+        else:
+            advances = version_key(report["version"]) > version_key(current)
+        if current != report.get("old_version") or not advances:
             raise MaintenanceError("Update report is stale or does not advance the version")
     if git("status", "--porcelain").strip():
         raise MaintenanceError("Apply updates to a clean checkout")
@@ -117,6 +130,11 @@ def apply_payload(package: Path, patch: bytes, report: dict, body_path: Path) ->
         return {"title": f"chore({package.name}): update AUR recipe to {report['version']}",
                 "body-path": str(body_path)}
     recipe = (package / "PKGBUILD").read_text()
+    if upstream:
+        from far_upstream import publication_body
+        body_path.write_text(publication_body(package, recipe, report, config))
+        return {"title": f"chore({package.name}): update to {report['version']}",
+                "body-path": str(body_path)}
     tag = assignment(recipe, "_upstream_tag")
     expected_url = f"https://github.com/{read_config(package)['github']}/releases/tag/{tag}"
     if (assignment(recipe, "pkgver") != report["version"]
