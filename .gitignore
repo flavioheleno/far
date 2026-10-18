@@ -1,0 +1,24 @@
+# Local environment and Python tooling
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.env
+.env.*
+!.env.example
+
+# Arch build/download products (keep source patches and metadata tracked)
+/packages/*/src/
+/packages/*/pkg/
+/packages/*/*.pkg.tar.*
+/packages/*/*.src.tar.*
+/packages/*/*.AppImage
+/packages/*/*.log
+
+# Local updater reports
+/.afr-updates/
+
+# Work-environment mounts are not part of the project
+/.agents/
+/.aws/
+/.codex/
