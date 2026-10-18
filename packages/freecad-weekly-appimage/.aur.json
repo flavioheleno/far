@@ -1,0 +1,9 @@
+{
+  "revision": "91280f750e62665c36e67d1c2a08c2a933a2352c",
+  "files": {
+    ".SRCINFO": "c21c32a2a5ccb3792a74b32bb1f336866fec66ddca21ea02406ac407dc3233f2",
+    "PKGBUILD": "f309b490aae09d4ab362682198ac5f70d7ef3f87e7c87f035653e671067e231b",
+    "freecad.sh": "67147f6d0a907f983d34d560512cc10aacec12cd796d4e90c308a97a81e25f82",
+    "org.freecad.FreeCAD.desktop.patch": "cec2dab7f769f1c235c657dea36cdbdec5ad57d8db5ec57ee88db1cc75572fd5"
+  }
+}

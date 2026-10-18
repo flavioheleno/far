@@ -1,0 +1,4 @@
+[freecad-weekly-appimage]
+source = "aur"
+aur = "freecad-weekly-appimage"
+use_last_modified = true

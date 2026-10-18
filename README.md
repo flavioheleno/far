@@ -39,6 +39,7 @@ AGENTS.md              Instructions for future repository work
 | [saleae-logic2](packages/saleae-logic2/) | x86_64 supported | Vendor Logic 2 releases |
 | [tailwindcss-bin](packages/tailwindcss-bin/) | x86_64 supported | Stable standalone CLI |
 | [enpass-bin](packages/enpass-bin/) | x86_64 supported | Vendor Enpass releases |
+| [freecad-weekly-appimage](packages/freecad-weekly-appimage/) | x86_64 supported | Weekly FreeCAD builds |
 
 ## Local build and installation
 
