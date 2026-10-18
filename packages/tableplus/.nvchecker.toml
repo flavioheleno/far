@@ -1,0 +1,4 @@
+[tableplus]
+source = "aur"
+aur = "tableplus"
+use_last_modified = true

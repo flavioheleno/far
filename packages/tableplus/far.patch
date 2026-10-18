@@ -1,0 +1,24 @@
+--- a/PKGBUILD
++++ b/PKGBUILD
+@@ -8,3 +8,3 @@
+ pkgver=0.1.316
+-pkgrel=1
++pkgrel=1.1
+ pkgdesc='Modern, native, and friendly GUI tool for relational databases (Alpha)'
+@@ -27,10 +27,8 @@
+ package() {
+-    install -d $pkgdir/opt/tableplus $pkgdir/usr/local/bin
+-    install -Dm755 $srcdir/opt/tableplus/tableplus -t $pkgdir/opt/tableplus/
+-    install -m755 $srcdir/opt/tableplus/tableplus -t $pkgdir/opt/tableplus/
+-    install -Dm644 $srcdir/opt/tableplus/tableplus.desktop -t $pkgdir/usr/share/applications/
+-    install -Dm644 $srcdir/LICENSE $pkgdir/usr/share/licenses/$pkgname/LICENSE
+-    cp -r $srcdir/opt/tableplus/resource $pkgdir/opt/tableplus/
+-    echo -e '#!/bin/sh\n/opt/tableplus/tableplus "$@"' >$pkgdir/usr/local/bin/tableplus
+-    chmod 755 $pkgdir/usr/local/bin/tableplus
++    install -d "$pkgdir/opt/tableplus" "$pkgdir/usr/bin"
++    install -Dm755 "$srcdir/opt/tableplus/tableplus" -t "$pkgdir/opt/tableplus/"
++    install -Dm644 "$srcdir/opt/tableplus/tableplus.desktop" -t "$pkgdir/usr/share/applications/"
++    install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
++    cp -r "$srcdir/opt/tableplus/resource" "$pkgdir/opt/tableplus/"
++    ln -s /opt/tableplus/tableplus "$pkgdir/usr/bin/tableplus"
+ }

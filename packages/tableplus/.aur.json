@@ -1,0 +1,9 @@
+{
+  "revision": "426c310a583a869b3de623d8b854865ac1d27830",
+  "files": {
+    ".SRCINFO": "d6202b02cb4692ac3dd29b6443aab307dbf0ce41adf1e919590bc8cb41e0440f",
+    "LICENSE": "76f924b1ebad5309ccf0dd7f3fe3d1b57ff3088b208a603900b0e240fdb5debb",
+    "PKGBUILD": "8089b3d3f7cc0eed4af0957f93e8e1cbfc60c3446ced2bc5c1abf7bb613907a1",
+    "tableplus.desktop": "83620b08e325418947f0007ecca7b981a988bfdac3f466db165f9262d1c0e5f4"
+  }
+}
