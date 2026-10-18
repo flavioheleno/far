@@ -1,0 +1,22 @@
+--- a/PKGBUILD
++++ b/PKGBUILD
+@@ -55,3 +55,3 @@
+ prepare() {
+-  cd "${srcdir}"/fritzing-app
++  cd "${srcdir}"/fritzing-app || return
+ 
+@@ -74,3 +74,3 @@
+ build() {
+-  cd "${srcdir}"/fritzing-app
++  cd "${srcdir}"/fritzing-app || return
+ 
+@@ -79,3 +79,3 @@
+ 
+-  mkdir build && cd build
++  mkdir build && cd build || return
+   qmake6 ..
+@@ -85,3 +85,3 @@
+ package() {
+-  cd "${srcdir}"/fritzing-app/build
++  cd "${srcdir}"/fritzing-app/build || return
+   make INSTALL_ROOT="${pkgdir}" install

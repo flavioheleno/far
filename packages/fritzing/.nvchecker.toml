@@ -1,0 +1,4 @@
+[fritzing]
+source = "aur"
+aur = "fritzing"
+use_last_modified = true

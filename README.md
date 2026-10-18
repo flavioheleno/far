@@ -40,6 +40,7 @@ AGENTS.md              Instructions for future repository work
 | [tailwindcss-bin](packages/tailwindcss-bin/) | x86_64 supported | Stable standalone CLI |
 | [enpass-bin](packages/enpass-bin/) | x86_64 supported | Vendor Enpass releases |
 | [freecad-weekly-appimage](packages/freecad-weekly-appimage/) | x86_64 supported | Weekly FreeCAD builds |
+| [fritzing](packages/fritzing/) | x86_64 supported | AUR-selected source revisions |
 
 ## Local build and installation
 
