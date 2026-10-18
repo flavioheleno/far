@@ -177,8 +177,14 @@ def verify_release_signature(package: Path, config: dict, release: bytes, signat
             raise MaintenanceError("Could not load the reviewed upstream signing key")
         verified = subprocess.run([*command, "--status-fd", "1", "--verify", str(signature_path), str(release_path)],
                                   capture_output=True, text=True, check=False, timeout=30)
-        signatures = [line.split()[2:] for line in verified.stdout.splitlines() if line.startswith("[GNUPG:] VALIDSIG ")]
-        if verified.returncode or not any(fingerprint in fields for fields in signatures):
+        status = [line.split()[1:] for line in verified.stdout.splitlines() if line.startswith("[GNUPG:] ")]
+        good = {fields[1][-16:] for fields in status if fields[0] == "GOODSIG" and len(fields) > 1}
+        trusted = any(fields[0] == "VALIDSIG" and fingerprint in fields[1:] and fields[1][-16:] in good
+                      for fields in status if len(fields) > 1)
+        # Vendors may co-sign with retired keys. Their missing-key ERRSIG makes gpg exit
+        # nonzero, so accept that, but never a bad, expired, or revoked signature.
+        rejected = any(fields[0] in {"BADSIG", "EXPSIG", "EXPKEYSIG", "REVKEYSIG"} for fields in status)
+        if rejected or not trusted:
             raise MaintenanceError("Upstream Release signature failed or used an unreviewed signing key")
 
 

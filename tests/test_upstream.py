@@ -232,6 +232,23 @@ class SignedSpotifyTests(unittest.TestCase):
                 with self.assertRaisesRegex(far.MaintenanceError, "signature failed"):
                     upstreams.verify_release_signature(self.package, self.config, self.release, b"signature")
 
+    def test_co_signature_from_a_retired_key_is_ignored_but_bad_signatures_fail(self):
+        key = self.config["signing_key"]
+        good = f"[GNUPG:] GOODSIG {key[-16:]} Vendor\n[GNUPG:] VALIDSIG {key} 2026-01-01 0 0 4 0 1 10 00 {key}\n"
+        retired = "[GNUPG:] ERRSIG 6F7565879798C2FC 1 8 00 0 9 " + "B" * 40 + "\n"
+        for stdout, accepted in ((good + retired, True), (good + "[GNUPG:] BADSIG 6F7565879798C2FC Old\n", False),
+                                 (f"[GNUPG:] EXPKEYSIG {key[-16:]} Vendor\n" + good.split("\n")[1], False),
+                                 (retired, False)):
+            imported = subprocess.CompletedProcess([], 0, stdout=b"", stderr=b"")
+            verified = subprocess.CompletedProcess([], 2, stdout=stdout, stderr="")
+            with self.subTest(stdout=stdout), \
+                    patch.object(upstreams.subprocess, "run", side_effect=[imported, verified]):
+                if accepted:
+                    upstreams.verify_release_signature(self.package, self.config, self.release, b"signature")
+                else:
+                    with self.assertRaises(far.MaintenanceError):
+                        upstreams.verify_release_signature(self.package, self.config, self.release, b"signature")
+
     def test_local_recipe_preserves_wget_epoch_and_signature_policy(self):
         recipe = (self.package / "PKGBUILD").read_text()
         self.assertIn("epoch=1", recipe)
