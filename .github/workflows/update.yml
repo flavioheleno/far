@@ -1,0 +1,48 @@
+name: Update recipes
+
+on:
+  schedule:
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package base to check (empty means all packages)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      packages: ${{ steps.matrix.outputs.packages }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Discover selected packages without evaluating recipes
+        id: matrix
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: python3 scripts/workflow.py matrix
+
+  update:
+    needs: discover
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        package: ${{ fromJSON(needs.discover.outputs.packages) }}
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/update-package.yml
+    with:
+      package: ${{ matrix.package }}
+      base-sha: ${{ github.sha }}
+      app-id: ${{ vars.FAR_APP_ID }}
+    secrets:
+      app-private-key: ${{ secrets.FAR_APP_PRIVATE_KEY }}

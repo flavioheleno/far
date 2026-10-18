@@ -1,6 +1,7 @@
 # FAR — Flavio's Arch Repository
 
-Personal Arch Linux package recipes for an x86_64 machine. GitHub Actions keeps
+Personal Arch Linux package recipes for an x86_64 machine, maintained at
+[flavioheleno/far](https://github.com/flavioheleno/far). GitHub Actions keeps
 the recipes current through pull requests. Build and install packages locally
 with [rua](https://github.com/vn971/rua) or `makepkg` and `pacman`.
 
@@ -10,7 +11,7 @@ with [rua](https://github.com/vn971/rua) or `makepkg` and `pacman`.
   `.SRCINFO`, update configuration, and packaging notes.
 - Git tracks recipes, metadata, patches, documentation, and automation.
 - GitHub Actions performs recipe checks and upstream update discovery. It never
-  builds or installs packages, executes upstream AppImages, uploads package
+  builds or installs managed packages, executes upstream AppImages, uploads package
   artifacts, or caches downloaded binaries.
 - An updater may download upstream files into temporary storage to verify their
   checksums. Those files are discarded when the job ends.
@@ -35,7 +36,8 @@ AGENTS.md              Instructions for future repository work
 
 ## Local build and installation
 
-Clone the repository and review the package recipe and its history. After pulling
+Clone `https://github.com/flavioheleno/far.git` and review the package recipe and
+its history. After pulling
 updates with `git pull --ff-only`, use rua's local-directory command:
 
 ```sh
@@ -105,6 +107,81 @@ including failures. These options do not bypass asset integrity checks.
 The offline unit tests exercise beta selection, full build versions, historical
 asset names, ambiguous/missing assets, source integrity, downgrade protection,
 rollback, credential stripping, and repeat-run behavior. They build no packages
-and contact no external services.
+and contact no external services. Workflow tests also verify patch path limits,
+payload bounds, report consistency, and publication without recipe execution.
 
-Scheduled GitHub automation is added in the next implementation commit.
+## GitHub Actions
+
+`Validate recipes` checks every package on PRs, pushes to `main`, and manual
+dispatch. It also runs the offline tests and `actionlint`. There are no path
+filters that could leave a required check pending. The Arch container is pinned
+by digest and updates its tools from official repositories at the start of each
+run. Recipe evaluation runs as an unprivileged user with no write credentials.
+
+`Update recipes` runs daily at **06:23 UTC** (03:23 in São Paulo) or on manual
+dispatch, optionally for one package. It discovers packages and invokes a reusable
+workflow independently for each. The preparation job checks the recipe and
+produces a bounded text patch for `PKGBUILD` and `.SRCINFO`. A separate publication
+job validates and applies only those two paths, then creates or refreshes
+`updates/<pkgbase>`. The publication job never evaluates the patched recipe. Data
+passes through job outputs; there are no artifact uploads or binary caches.
+
+Each PR includes the old/new versions, upstream release link, asset name, and
+verified SHA-256. Repeat runs reuse the same PR and do nothing when already
+current. Merge manually after review. Source hashing and metadata checks are not
+a substitute for a successful local build and runtime test.
+
+### Repository setup
+
+1. Push the committed repository to `flavioheleno/far` with `main` as the default
+   branch. Enable Actions for the repository.
+2. Under **Settings → Actions → General → Workflow permissions**, enable
+   **Allow GitHub Actions to create and approve pull requests**. Keep the default
+   token read-only; the workflows request write access only where needed.
+3. Run **Validate recipes**, then manually run **Update recipes** to verify the
+   initial configuration. Review the Actions logs for failures.
+4. After the first validation run, configure the `Recipe checks` status as a
+   required check on `main` if you want branch protection. Merge manually.
+
+By default, PR creation uses the built-in `GITHUB_TOKEN`, requiring no personal
+token or repository secrets. GitHub currently places CI runs for PRs created by
+that token into an approval-required state; approve the run on the PR. The update
+preparation job has already performed recipe checks before opening it.
+
+To make PR CI start automatically, optionally install a GitHub App on **this
+repository only**, with Contents and Pull requests read/write permissions. Set
+the repository variable `FAR_APP_ID` and secret `FAR_APP_PRIVATE_KEY`. The App key
+is used only in the publication job. Leave both unset to use `GITHUB_TOKEN`.
+
+External Actions are pinned to full commit SHAs and updated weekly by Dependabot.
+Refresh the official `archlinux:base-devel` container digest in both workflow
+files when needed; Dependabot does not maintain those container fields.
+
+GitHub schedules run on the default branch, can be delayed, and public-repository
+schedules are disabled after 60 days without repository activity. Watch failure
+notifications, check the last successful run periodically, and re-enable an idle
+workflow in the Actions UI. Manual dispatch is always available when enabled.
+
+References: [GitHub token behavior](https://docs.github.com/en/actions/concepts/security/github_token),
+[scheduled workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule),
+and [rua local-directory usage](https://github.com/vn971/rua#use).
+
+## Adding a package
+
+1. Add `packages/<pkgbase>/PKGBUILD`, its supporting source files, and a README
+   recording provenance, release channel, asset selection, dependencies, and local
+   build/runtime instructions.
+2. Add `.nvchecker.toml` with a table matching `pkgbase`. The shared updater
+   currently supports GitHub releases with `use_max_release = true`, an explicit
+   `include_prereleases` boolean, and numeric dotted version normalization.
+3. Add `update.py` implementing `select_candidate(releases, config)` and
+   `render_recipe(text, candidate)`. The current shared apply logic expects a
+   single SHA-256 source and literal `pkgver`, `_upstream_tag`, and `_asset`
+   assignments. Extend that interface with tests before adding other recipe
+   shapes; do not force unrelated packages into the AppImage assumptions.
+4. Generate `.SRCINFO`, add offline selection/integrity tests, run the checks,
+   and update the package table above. Workflows discover package directories
+   automatically. Add and review nonofficial dependencies explicitly; the shared
+   automation does not recursively fetch or import AUR recipes.
+
+See [AGENTS.md](AGENTS.md) for the maintenance conventions.

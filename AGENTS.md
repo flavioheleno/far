@@ -6,8 +6,10 @@ FAR is an AUR-style collection of Arch Linux recipes for local x86_64 builds.
 Every package has a directory at `packages/<pkgbase>/`. Keep package-specific
 files together; keep shared orchestration in `scripts/`.
 
-- Never add package builds, installation, AppImage execution, binary artifact
-  uploads, binary caches, or a pacman binary repository to GitHub Actions.
+- Never build or install managed packages, execute their AppImages, upload
+  binary artifacts, cache binaries, or publish a pacman binary repository from
+  GitHub Actions. Installing lint/metadata tools from official Arch repositories
+  in a disposable CI container is allowed.
 - Temporary upstream downloads for checksum verification are allowed. Do not
   commit or upload those downloads, build outputs, or extracted sources.
 - Keep `PKGBUILD` as the package definition and regenerate `.SRCINFO` with
@@ -55,6 +57,9 @@ Before committing recipe or updater changes, run `./scripts/check-packages` and
 preview of affected packages against saved metadata when available; do not use
 live upstream data in unit tests. `scripts/far.py` contains shared maintenance;
 each package's `update.py` implements `select_candidate` and `render_recipe`.
+Run `actionlint` after workflow changes. `scripts/workflow.py` is the boundary
+between unprivileged update preparation and PR publication: keep its patch path
+allowlist, payload bounds, and no-recipe-execution publication behavior intact.
 
 The root README is the entry point for commands and GitHub setup. Follow any
 additional package instructions, keeping the recipe-only boundary above intact.

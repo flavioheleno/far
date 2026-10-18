@@ -1,0 +1,99 @@
+name: Update one recipe
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        type: string
+        required: true
+      base-sha:
+        type: string
+        required: true
+      app-id:
+        type: string
+        default: ''
+    secrets:
+      app-private-key:
+        required: false
+
+concurrency:
+  group: update-${{ inputs.package }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare recipe patch
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    container:
+      image: archlinux:base-devel@sha256:061679925e5d5028f2df9395d441ce6c4b9accf0157ff3486c06b6962e014ef1
+    outputs:
+      changed: ${{ steps.prepare.outputs.changed }}
+      patch: ${{ steps.prepare.outputs.patch }}
+      report: ${{ steps.prepare.outputs.report }}
+    steps:
+      - name: Install metadata tools
+        run: pacman -Syu --noconfirm --needed python git shellcheck
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ inputs.base-sha }}
+          persist-credentials: false
+      - name: Prepare an unprivileged recipe user
+        run: |
+          useradd --create-home --shell /bin/bash far
+          chown -R far:far "$GITHUB_WORKSPACE"
+      - name: Resolve and check upstream update
+        id: prepare
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: |
+          runuser -u far -- python3 scripts/workflow.py prepare --output /tmp/far-outputs
+          cat /tmp/far-outputs >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Propose recipe update
+    needs: prepare
+    if: needs.prepare.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ inputs.base-sha }}
+          persist-credentials: false
+      - name: Apply only the checked recipe patch (no recipe execution)
+        id: patch
+        env:
+          PACKAGE: ${{ inputs.package }}
+          UPDATE_PATCH: ${{ needs.prepare.outputs.patch }}
+          UPDATE_REPORT: ${{ needs.prepare.outputs.report }}
+        run: python3 scripts/workflow.py apply
+      - name: Create optional repository-scoped App token
+        if: inputs.app-id != ''
+        id: app
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ inputs.app-id }}
+          private-key: ${{ secrets.app-private-key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Open or refresh the package update PR
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
+        with:
+          token: ${{ steps.app.outputs.token || github.token }}
+          branch: updates/${{ inputs.package }}
+          base: main
+          title: ${{ steps.patch.outputs.title }}
+          commit-message: ${{ steps.patch.outputs.title }}
+          body-path: ${{ steps.patch.outputs.body-path }}
+          add-paths: |
+            packages/${{ inputs.package }}/PKGBUILD
+            packages/${{ inputs.package }}/.SRCINFO
+          delete-branch: true

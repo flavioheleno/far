@@ -1,0 +1,38 @@
+name: Validate recipes
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  recipes:
+    name: Recipe checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: archlinux:base-devel@sha256:061679925e5d5028f2df9395d441ce6c4b9accf0157ff3486c06b6962e014ef1
+    steps:
+      - name: Install metadata and lint tools
+        run: pacman -Syu --noconfirm --needed python git shellcheck actionlint
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Prepare an unprivileged recipe user
+        run: |
+          useradd --create-home --shell /bin/bash far
+          chown -R far:far "$GITHUB_WORKSPACE"
+      - name: Check workflow syntax
+        run: actionlint -color
+      - name: Test updater behavior without network or package builds
+        run: runuser -u far -- python3 -m unittest discover -s tests -v
+      - name: Check every recipe and its generated metadata
+        run: runuser -u far -- ./scripts/check-packages
