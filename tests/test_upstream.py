@@ -95,6 +95,17 @@ class GithubDiscoveryTests(unittest.TestCase):
              f"https://github.com/{config['github']}/releases/download/{tag}/{entry['asset']}"}
             for entry in config["sources"] if "asset" in entry]}
 
+    def test_release_channel_must_be_explicit(self):
+        for name in ("rtk-bin", "freecad-weekly-appimage"):
+            config = self.config(name)
+            for value in (None, "false"):
+                broken = {key: item for key, item in config.items() if key != "include_prereleases"}
+                if value is not None:
+                    broken["include_prereleases"] = value
+                with self.subTest(name=name, value=value), \
+                        self.assertRaisesRegex(far.MaintenanceError, "include_prereleases"):
+                    upstream.validate_config(broken)
+
     def test_rtk_and_tailwind_include_both_architectures_and_release_license(self):
         for name in ("rtk-bin", "tailwindcss-bin"):
             config = self.config(name)

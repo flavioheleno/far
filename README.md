@@ -325,6 +325,8 @@ For the shared upstream interface:
    upstream literals. Binary sources use literal `_url...` variables referenced
    by `source` arrays. Map every remote payload/license to its exact checksum
    array/index, algorithm, and adapter-specific asset or repository metadata.
+   GitHub release modes (`github-assets`, `freecad-weekly`) also require an
+   explicit `include_prereleases` boolean.
 3. Reuse a discovery mode in `scripts/upstreams.py`, or add a focused mode with
    offline fixtures for selection, integrity, failure handling, and publication.
    Keep shared download, apply, rollback, and literal publication validation in

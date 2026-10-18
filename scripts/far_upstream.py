@@ -30,6 +30,8 @@ def validate_config(config: dict) -> None:
     if config["mode"] in {"github-assets", "freecad-weekly", "fritzing"}:
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", config.get("github", "")):
             raise MaintenanceError("Declare an explicit upstream GitHub repository")
+    if config["mode"] in {"github-assets", "freecad-weekly"} and not isinstance(config.get("include_prereleases"), bool):
+        raise MaintenanceError("Set include_prereleases explicitly to true or false")
     if config["mode"] == "fritzing" and not re.fullmatch(r"[A-Za-z0-9._/-]+", config.get("branch", "")):
         raise MaintenanceError("Declare the upstream source-version branch")
     identities = []
