@@ -1,0 +1,4 @@
+[rtk-bin]
+source = "aur"
+aur = "rtk-bin"
+use_last_modified = true

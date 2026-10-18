@@ -33,6 +33,7 @@ AGENTS.md              Instructions for future repository work
 | Package | Architecture | Release channel |
 | --- | --- | --- |
 | [bambustudio-appimage](packages/bambustudio-appimage/) | x86_64 | Stable and beta |
+| [rtk-bin](packages/rtk-bin/) | x86_64 supported | Stable RTK releases |
 
 ## Local build and installation
 
