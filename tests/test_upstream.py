@@ -276,7 +276,7 @@ class VendorDiscoveryTests(unittest.TestCase):
         data = (self.index(version="6.12.7.2200") + self.index() + self.index(package="unrelated", version="99.0")
                 + self.index(architecture="arm64", version="99.0"))
         with patch.object(upstreams, "fetch", return_value=data):
-            selected = upstreams.debian(config)
+            selected = upstreams.debian(config, "pkgver=1\n")
         upstream.validate_candidate(selected, config)
         self.assertEqual(selected["version"], "6.12.7.2300")
         self.assertEqual(selected["sources"][0]["digest"], DIGEST)
@@ -287,19 +287,32 @@ class VendorDiscoveryTests(unittest.TestCase):
                      self.index().replace(b"SHA256:", b"Size: 42\nSHA256:")):
             with patch.object(upstreams, "fetch", return_value=data):
                 with self.assertRaises(far.MaintenanceError):
-                    upstreams.debian(config)
+                    upstreams.debian(config, "pkgver=1\n")
 
     def test_tableplus_retains_build_number_and_waits_for_both_architectures(self):
         config = self.config("tableplus")
         data = {entry["index_url"]: self.index(package="tableplus", architecture=entry["architecture"],
                                              version="2.0.0-318") for entry in config["sources"]}
-        selected = upstreams.debian(config, indices=data)
+        selected = upstreams.debian(config, "pkgver=1\n", indices=data)
         upstream.validate_candidate(selected, config)
         self.assertEqual(selected["version"], "2.0.0.318")
         entry = config["sources"][1]
         data[entry["index_url"]] = self.index(package="tableplus", architecture="arm64", version="2.0.0-317")
         with self.assertRaisesRegex(far.MaintenanceError, "different versions"):
-            upstreams.debian(config, indices=data)
+            upstreams.debian(config, "pkgver=1\n", indices=data)
+
+    def test_debian_epoch_must_match_the_recipe_epoch(self):
+        config = self.config("enpass-bin")
+        data = self.index(version="1:6.12.7.2300") + self.index(version="6.99.0.1")
+        with patch.object(upstreams, "fetch", return_value=data):
+            # The epoch outranks a higher unepoched version, and never leaks into pkgver.
+            self.assertEqual(upstreams.debian(config, "pkgver=1\nepoch=1\n")["version"], "6.12.7.2300")
+            for recipe in ("pkgver=1\n", "pkgver=1\nepoch=2\n"):
+                with self.subTest(recipe=recipe), self.assertRaisesRegex(far.MaintenanceError, "epoch"):
+                    upstreams.debian(config, recipe)
+        with patch.object(upstreams, "fetch", return_value=self.index(version="x:6.12.7.2300")), \
+                self.assertRaises(far.MaintenanceError):
+            upstreams.debian(config, "pkgver=1\n")
 
     def test_saleae_uses_versioned_redirect_and_rejects_insider_or_foreign_downloads(self):
         config = self.config("saleae-logic2")
@@ -327,7 +340,7 @@ class SignedSpotifyTests(unittest.TestCase):
         self.config = far.read_config(self.package)
         self.recipe = (self.package / "PKGBUILD").read_text()
         self.key = upstreams.pinned_fingerprint(self.recipe)
-        self.index = ("Package: spotify-client\nArchitecture: amd64\nVersion: 1.3.5.300.gabcdef123456\n"
+        self.index = ("Package: spotify-client\nArchitecture: amd64\nVersion: 1:1.3.5.300.gabcdef123456\n"
                       "Filename: pool/non-free/s/spotify-client/spotify-client_1.3.5.300.gabcdef123456_amd64.deb\n"
                       f"Size: {len(PAYLOAD)}\nSHA512: {hashlib.sha512(PAYLOAD).hexdigest()}\n\n").encode()
         self.path = "non-free/binary-amd64/Packages"

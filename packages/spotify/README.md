@@ -44,7 +44,8 @@ fetches Spotify's published key, accepts it only if it matches the PKGBUILD's
 `Packages` index against the signed Release SHA-256 and size, selects
 `spotify-client` for amd64, then downloads and verifies the Debian payload
 against its SHA-512 and size. The full vendor commit suffix is retained in
-`_commit`, and `epoch=1` is preserved.
+`_commit`, and `epoch=1` is preserved. Spotify's index publishes the matching
+Debian epoch (`1:`); a different upstream epoch stops the update for review.
 
 A changed signing key requires manual review and a reviewed `validpgpkeys`
 change; a key whose fingerprint differs from the pinned one stops the update. The isolated

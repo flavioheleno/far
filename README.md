@@ -341,7 +341,9 @@ For the shared upstream interface:
 
 Existing shared modes are `github-assets` (Bambu Studio/Extrudo/RTK/Tailwind), `freecad-weekly`,
 `debian` (Spotify/TablePlus/Enpass), `saleae`, and `fritzing`. Automated updates
-reset `pkgrel` to `1` on a new upstream version and preserve any `epoch`. For a
+reset `pkgrel` to `1` on a new upstream version and preserve any `epoch`. A
+Debian repository epoch must equal the recipe's `epoch`; a change stops the
+update for review. For a
 packaging-only change, bump `pkgrel` manually and regenerate `.SRCINFO`. New
 adapters must use versions compatible with publication's numeric dotted version
 format, optionally followed by an underscore and numeric dotted weekly date,

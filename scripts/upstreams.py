@@ -13,7 +13,7 @@ from urllib.parse import urljoin
 from urllib.parse import quote
 from xml.etree import ElementTree
 
-from far import MaintenanceError, assignment, github_releases, request_json, version_key
+from far import MaintenanceError, assignment, github_releases, literal_pattern, request_json, version_key
 from far_upstream import compare_versions, fetch, open_upstream, validate_url
 
 
@@ -125,16 +125,31 @@ def debian_entries(data: bytes) -> list[dict]:
     return entries
 
 
-def debian_version(value: str) -> tuple[str, dict]:
+def debian_version(value: str) -> tuple[int, str, dict]:
+    # A Debian epoch ("1:") maps to the recipe's Arch epoch, never to pkgver.
+    epoch, value = value.split(":", 1) if ":" in value else ("0", value)
+    if not epoch.isdigit():
+        raise MaintenanceError(f"Unrecognized upstream Debian epoch: {epoch}")
+    epoch = int(epoch)
     spotify = re.fullmatch(r"(\d+(?:\.\d+){3})\.(g[a-f0-9]+)", value)
     if spotify:
-        return spotify[1], {"_commit": spotify[2]}
+        return epoch, spotify[1], {"_commit": spotify[2]}
     if not re.fullmatch(r"\d+(?:\.\d+)*(?:-\d+)?", value):
         raise MaintenanceError(f"Unrecognized upstream Debian version: {value}")
-    return value.replace("-", "."), {}
+    return epoch, value.replace("-", "."), {}
 
 
-def debian(config: dict, *, indices=None) -> dict:
+def recipe_epoch(recipe: str) -> int:
+    values = literal_pattern("epoch").findall(recipe)
+    if len(values) > 1:
+        raise MaintenanceError("Expected at most one literal epoch assignment")
+    value = next((item for item in values[0] if item), "") if values else "0"
+    if not value.isdigit():
+        raise MaintenanceError("Invalid epoch assignment")
+    return int(value)
+
+
+def debian(config: dict, recipe: str, *, indices=None) -> dict:
     sources = []
     versions = set()
     extra_fields = None
@@ -146,14 +161,17 @@ def debian(config: dict, *, indices=None) -> dict:
         if not eligible:
             raise MaintenanceError(f"No {config['package']} for {entry['architecture']} in upstream index")
         normalized = [(debian_version(record["Version"]), record) for record in eligible]
-        # Use Arch version comparison on complete normalized versions, retaining vendor build IDs.
+        # Compare epochs first, then complete normalized versions with Arch's vercmp, retaining build IDs.
         best = normalized[0]
         for item in normalized[1:]:
-            if compare_versions(item[0][0], best[0][0]) > 0:
+            if item[0][0] > best[0][0] or (
+                    item[0][0] == best[0][0] and compare_versions(item[0][1], best[0][1]) > 0):
                 best = item
-        (version, fields), record = best
-        if sum(item[0][0] == version for item in normalized) != 1:
+        (epoch, version, fields), record = best
+        if sum(item[0][:2] == (epoch, version) for item in normalized) != 1:
             raise MaintenanceError("Ambiguous highest-version Debian payload")
+        if epoch != recipe_epoch(recipe):
+            raise MaintenanceError(f"Upstream Debian epoch {epoch} differs from the PKGBUILD epoch; review manually")
         versions.add(version)
         if extra_fields is not None and extra_fields != fields:
             raise MaintenanceError("Architectures disagree on upstream build identifiers")
@@ -261,7 +279,7 @@ def signed_debian(config: dict, recipe: str) -> dict:
         data = fetch(entry["index_url"], config)
         verify_index(release, data, entry["release_path"])
         indices[entry["index_url"]] = data
-    return debian(config, indices=indices)
+    return debian(config, recipe, indices=indices)
 
 
 def saleae(config: dict) -> dict:
@@ -345,7 +363,7 @@ def discover(package, config: dict, recipe: str, *, releases=None) -> dict:
     if config["mode"] == "freecad-weekly":
         return freecad_weekly(config, recipe, releases=releases)
     if config["mode"] == "debian":
-        return signed_debian(config, recipe) if config.get("signing_key_url") else debian(config)
+        return signed_debian(config, recipe) if config.get("signing_key_url") else debian(config, recipe)
     if config["mode"] == "saleae":
         return saleae(config)
     if config["mode"] == "fritzing":
