@@ -240,7 +240,8 @@ by digest and updates its tools from official repositories at the start of each
 run. Recipe evaluation runs as an unprivileged user with no write credentials.
 
 `Update recipes` runs daily at **06:23 UTC** (03:23 in São Paulo) or on manual
-dispatch, optionally for one package. It discovers packages and invokes a reusable
+dispatch from `main`, optionally for one package; runs from other branches fail
+immediately because update PRs always target `main`. It discovers packages and invokes a reusable
 workflow independently for each. The preparation job checks the recipe and
 produces a bounded text patch for the recipe and metadata. A separate publication
 job validates the package-specific path allowlist and applies the patch, then creates or refreshes

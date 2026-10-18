@@ -20,6 +20,12 @@ jobs:
     outputs:
       packages: ${{ steps.matrix.outputs.packages }}
     steps:
+      # Update PRs always target main, so their base commit must come from main.
+      - name: Require the main branch
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run Update recipes from main; update PRs are based on main"
+          exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
