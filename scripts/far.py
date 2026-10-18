@@ -48,10 +48,6 @@ def read_config(package: Path) -> dict:
         from far_upstream import validate_config
         validate_config(config)
         return config
-    if config.get("source") == "aur":
-        if config.get("aur") != package.name:
-            raise MaintenanceError("AUR source name must match the package directory and pkgbase")
-        return config
     repository = config.get("github")
     if (config.get("source") != "github" or not isinstance(repository, str)
             or not REPOSITORY.fullmatch(repository)):
@@ -124,14 +120,11 @@ def generate_srcinfo(package: Path) -> str:
 def check_package(package: Path) -> None:
     config = read_config(package)
     required = ["PKGBUILD", ".SRCINFO", ".nvchecker.toml", "README.md"]
-    if config["source"] != "upstream":
-        required.append(".aur.json" if config["source"] == "aur" else "update.py")
+    if config["source"] == "github":
+        required.append("update.py")
     for name in required:
         if not (package / name).is_file() or (package / name).is_symlink():
             raise MaintenanceError(f"Missing regular package file: {name}")
-    if config["source"] == "aur":
-        from far_aur import verify_manifest
-        verify_manifest(package)
     for command in (
         ["bash", "-n", "PKGBUILD"],
         ["shellcheck", "--shell=bash", "--exclude=SC2034,SC2154", "PKGBUILD"],
@@ -207,11 +200,6 @@ def update_one(package: Path, releases: list[dict] | None = None, *,
             raise MaintenanceError("--releases-json applies only to the legacy GitHub AppImage adapters")
         from far_upstream import update_upstream
         return update_upstream(package, config, apply=apply, verify_current=verify_current)
-    if config["source"] == "aur":
-        if releases is not None or verify_current:
-            raise MaintenanceError("--releases-json and --verify-current apply only to direct GitHub sources")
-        from far_aur import update_aur
-        return update_aur(package, apply=apply)
     adapter = runpy.run_path(str(package / "update.py"))
     candidate = adapter["select_candidate"](
         github_releases(config["github"]) if releases is None else releases, config)

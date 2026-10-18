@@ -18,6 +18,19 @@ with [rua](https://github.com/vn971/rua) or `makepkg` and `pacman`.
 - Updates arrive as one reviewable pull request per package. Merge decisions and
   local installation remain manual.
 
+## Relationship to AUR
+
+FAR tracks each project's own releases or vendor repository directly. It does
+not poll AUR, synchronize AUR Git snapshots, or publish changes back to AUR.
+AUR supplied the initial recipes for several packages; their original revision
+links and contributor attribution remain in the package documentation. Existing
+package names follow AUR conventions so local packages retain their expected
+names, `provides`, and `conflicts`.
+
+FAR owns packaging maintenance from here: dependency changes, patches, launchers,
+install hooks, and signing-key changes require review in this repository. A new
+upstream release can trigger a recipe PR without waiting for an AUR maintainer.
+
 ## Layout
 
 ```text
@@ -40,7 +53,7 @@ AGENTS.md              Instructions for future repository work
 | [tailwindcss-bin](packages/tailwindcss-bin/) | x86_64 supported | Stable standalone CLI |
 | [enpass-bin](packages/enpass-bin/) | x86_64 supported | Vendor Enpass releases |
 | [freecad-weekly-appimage](packages/freecad-weekly-appimage/) | x86_64 supported | Weekly FreeCAD builds |
-| [fritzing](packages/fritzing/) | x86_64 supported | AUR-selected source revisions |
+| [fritzing](packages/fritzing/) | x86_64 supported | Source-version bumps; pinned commits |
 | [sublime-text-dev](packages/sublime-text-dev/) | x86_64 supported | Sublime Text development builds |
 | [extrudo-appimage](packages/extrudo-appimage/) | x86_64 | Stable releases |
 
@@ -75,7 +88,8 @@ makepkg --printsrcinfo > .SRCINFO
 
 ## Recipe checks and updates
 
-Requirements: Arch Linux, Python 3.11+, `base-devel`, `shellcheck`, and `git`.
+Requirements: Arch Linux, Python 3.11+, `base-devel` (including `vercmp`),
+`shellcheck`, `git`, and `gnupg`.
 The Python tooling uses only the standard library. Commands work from any
 working directory; the paths below assume the repository root.
 
@@ -94,7 +108,7 @@ with the committed file. These checks never call `build()`, `prepare()`, or
 the recipe as shell code: only evaluate recipes you trust.
 
 The updater defaults to a read-only preview. `.nvchecker.toml` selects either a
-direct GitHub source or an AUR snapshot source. `--apply` updates the managed
+direct GitHub AppImage source or the shared direct upstream interface. `--apply` updates the managed
 recipe files and regenerates `.SRCINFO`, rolling back if validation fails.
 Both commands accept one or more package bases;
 omitting them selects all packages. Failures are reported independently and
@@ -118,33 +132,60 @@ An optional `GH_TOKEN` raises the GitHub API rate limit; it is not passed to
 `makepkg`. Release discovery follows up to 1,000 release entries, failing visibly
 instead of silently truncating a larger history.
 
-RTK, Tailwind CSS, FreeCAD weekly, Enpass, TablePlus, Saleae Logic 2, and
-Sublime Text development builds, and Spotify use the direct upstream interface.
-Spotify verifies signed vendor metadata with its pinned key in a temporary
-keyring. Fritzing currently uses the AUR source below.
+The other packages use the shared interface in `scripts/upstreams.py`:
 
-For AUR sources, the updater imports a pinned Git snapshot with its recipe,
-patches, launchers, install hooks, and signing keys. It preserves the maintainer's
-source checksums and signature checks. `.aur.json` records the current revision
-and SHA-256 of every managed file. FAR's optional `far.patch` is reapplied before
-metadata generation; conflicts stop the update. AUR recipe/support-file changes
-at an unchanged software version also produce a reviewable PR. Vendor payloads
-are verified by makepkg locally, rather than downloaded by CI for these packages.
-This mode depends on the AUR maintainer publishing an updated recipe.
+| Package | First-party discovery source |
+| --- | --- |
+| RTK | [GitHub stable releases](https://github.com/rtk-ai/rtk/releases) |
+| Tailwind CSS | [GitHub stable releases](https://github.com/tailwindlabs/tailwindcss/releases) |
+| FreeCAD weekly | [GitHub weekly releases](https://github.com/FreeCAD/FreeCAD/releases); base version from `version.json` at the selected tag |
+| Spotify | [Vendor testing repository](https://repository.spotify.com/dists/testing/Release), authenticated with the committed signing key |
+| TablePlus | [Vendor Linux APT repository](https://tableplus.com/download/linux), both amd64 and arm64 |
+| Enpass | [Vendor stable APT repository](https://apt.enpass.io/), amd64 |
+| Saleae Logic 2 | [Normal vendor download](https://www.saleae.com/downloads), resolved to an exact Linux x64 AppImage |
+| Sublime Text dev | [Development build announcement](https://www.sublimetext.com/dev), x64 and arm64 tarballs |
+| Fritzing | [Source-version commit history](https://github.com/fritzing/fritzing-app/commits/develop/src/version/version.cpp), checked against plist and AppStream metadata |
 
-For reproducible diagnosis of a direct GitHub package, `--releases-json <file>`
-accepts a saved GitHub REST release-list response. `--verify-current` likewise
-applies only to direct GitHub sources. `--report <file>` writes a JSON summary,
-including failures, for either mode. These options do not bypass integrity checks.
+Each configuration declares allowed HTTPS hosts, assignments, and checksum
+slots. Every declared architecture must be available at the same version. New
+payloads are downloaded into the hashing stream and discarded, with declared
+sizes and published checksums verified when available. Current sources with no
+published checksum are downloaded again to detect changed content. Local
+supporting files and recipe customizations remain in FAR; the updater changes
+only the version/source literals, payload checksums, `pkgrel`, and `.SRCINFO`.
+
+Spotify verifies the signed Release, its Packages index, and the Debian payload
+using its pinned key in a disposable keyring. Its PKGBUILD retains **wget** for
+local downloads. TablePlus and Enpass use HTTPS repository metadata and payload
+checksums; their APT signatures are not currently authenticated by these adapters.
+Sublime and Saleae downloads are hashed over HTTPS without an independent
+signature step, matching the imported recipes' verification policy.
+
+Fritzing watches source-version bump commits on the upstream `develop` branch.
+It resolves an immutable head, reads the source version, and checks a matching
+version-bump commit against both plist and AppStream metadata before proposing
+that exact application pin. The current application's reviewed post-bump fixes
+are preserved until the version advances. Its parts revision stays pinned for
+compatibility review. Missing or ambiguous commits and inconsistent metadata
+stop the update. A version bump can precede a public release: review upstream's
+release status, source patches, and parts compatibility before merging. GitHub
+Releases, tags, and website announcements are not used for Fritzing discovery.
+
+For reproducible diagnosis of the Bambu Studio or Extrudo adapter,
+`--releases-json <file>` accepts a saved GitHub REST release-list response.
+`--verify-current` also checks shared-adapter payloads; it does not fetch
+Fritzing VCS source trees. `--report <file>` writes a JSON summary, including
+failures, for all adapters. These options do not bypass integrity checks.
 
 The offline unit tests exercise beta selection, full build versions, historical
 asset names, ambiguous/missing assets, source integrity, downgrade protection,
 rollback, credential stripping, and repeat-run behavior. They build no packages
 and contact no external services. Workflow tests also verify patch path limits,
 payload bounds, report consistency, and publication without recipe execution.
-AUR tests exercise epochs, dated versions, supporting-file additions/removals,
-overlay conflicts, rollback, and local source-file integrity. They evaluate only
-metadata, and never run packaging functions.
+Direct upstream tests cover multiple architectures, full Debian build versions,
+signed metadata verification, source allowlists, checksum slots, weekly dates,
+Fritzing version-bump selection, rollback, and publication on non-Arch runners.
+They never build managed packages.
 
 ## GitHub Actions
 
@@ -157,19 +198,15 @@ run. Recipe evaluation runs as an unprivileged user with no write credentials.
 `Update recipes` runs daily at **06:23 UTC** (03:23 in São Paulo) or on manual
 dispatch, optionally for one package. It discovers packages and invokes a reusable
 workflow independently for each. The preparation job checks the recipe and
-produces a bounded text patch for the recipe and metadata. For AUR snapshots, it
-also includes the source manifest and changed supporting files. A separate publication
+produces a bounded text patch for the recipe and metadata. A separate publication
 job validates the package-specific path allowlist and applies the patch, then creates or refreshes
 `updates/<pkgbase>`. The publication job never evaluates the patched recipe. Data
 passes through job outputs; there are no artifact uploads or binary caches.
-Small imported public signing keys can travel as bounded Git binary patches;
-executable binary payloads are excluded from that handoff.
+Only text changes to the selected PKGBUILD and `.SRCINFO` are accepted. Supporting
+files and signing-key changes require a separate reviewed maintenance commit.
 
-Direct GitHub PRs include the old/new versions, upstream release link, asset name,
-and verified SHA-256. AUR PRs link the precise snapshot revision and preserve the
-local overlay; all changed recipe/support files are included. Repeat runs reuse
-the same PR and do nothing when already
-current. Merge manually after review. Source hashing and metadata checks are not
+PRs include the old/new versions, upstream link, and asset/checksum or source-pin
+details. Repeat runs reuse the same PR and do nothing when already current. Merge manually after review. Source hashing and metadata checks are not
 a substitute for a successful local build and runtime test.
 
 ### Repository setup
@@ -213,29 +250,26 @@ Use the **exact AUR pkgbase**, retaining established `-bin`, `-dev`, `-weekly`, 
 `-appimage` names. Preserve a multi-architecture recipe when it supports x86_64;
 FAR's local target does not require stripping other architectures from metadata.
 
-For AUR-backed packages, start with a reviewed import:
+Add recipes manually from reviewed first-party packaging or an attributed
+initial AUR recipe. There is no AUR import or synchronization command. Preserve
+useful existing dependencies, install hooks, source patches, signatures, epochs,
+and architecture definitions; maintain local changes directly in the recipe.
 
-```sh
-./scripts/import-aur <pkgbase>
-```
+For the shared upstream interface:
 
-`--checkout <path>` reads an existing AUR Git clone. `--overlay <patch>` records
-local changes as `far.patch` and checks that they apply. The import creates
-provenance/usage notes, `.nvchecker.toml`, generated `.SRCINFO`, and `.aur.json`,
-and refuses to overwrite an existing package. Review and customize the package
-README and update the table above before committing.
-
-Keep local recipe changes in `far.patch`, relative to the pinned AUR snapshot.
-Use a normal unified diff with context. After reviewing manual changes to an
-existing recipe, regenerate its metadata and manifest with:
-
-```sh
-./scripts/import-aur --refresh <pkgbase>
-```
-
-This intentionally trusts your reviewed changes; update the overlay in the same
-commit so the next automated import preserves them. Adding/removing local source
-files also requires an explicit update to the manifest's file list.
+1. Add `PKGBUILD`, generated `.SRCINFO`, supporting files, and a package README
+   describing provenance, release channel, exact source selection, and local use.
+2. Add `.nvchecker.toml` with `source = "upstream"`, an adapter `mode`, explicit
+   HTTPS `hosts`, and an `assignments` allowlist containing `pkgver` plus the
+   upstream literals. Binary sources use literal `_url...` variables referenced
+   by `source` arrays. Map every remote payload/license to its exact checksum
+   array/index, algorithm, and adapter-specific asset or repository metadata.
+3. Reuse a discovery mode in `scripts/upstreams.py`, or add a focused mode with
+   offline fixtures for selection, integrity, failure handling, and publication.
+   Keep shared download, apply, rollback, and literal publication validation in
+   `scripts/far_upstream.py`. Update adapters must cover all declared architectures.
+4. Check metadata and run the offline tests before committing. Vendor signing-key
+   rotations and changes to build patches/dependencies need explicit review.
 
 For direct GitHub updates such as Bambu Studio:
 

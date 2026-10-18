@@ -14,13 +14,13 @@ files together; keep shared orchestration in `scripts/`.
   commit or upload those downloads, build outputs, or extracted sources.
 - Keep `PKGBUILD` as the package definition and regenerate `.SRCINFO` with
   `makepkg --printsrcinfo` whenever package metadata changes. Never hand-edit it.
-- Preserve imported recipe attribution and record the exact upstream revision in
-  the package README and current AUR snapshot in `.aur.json`. Review imported
-  changes rather than blindly merging AUR updates. Use AUR's exact pkgbase names.
+- Preserve imported recipe attribution and record the exact initial revision in
+  the package README for provenance only. Track upstream projects directly;
+  never poll or synchronize AUR recipes. Use AUR's established pkgbase names.
 - Use version-specific source URLs, full upstream build identifiers, and SHA-256
   or stronger checksums. Never refresh an unchanged version's checksum silently.
   Preserve documented signed-metadata and pinned-VCS checksum exceptions from
-  reviewed AUR recipes; do not add SKIP for ordinary binary payloads.
+  reviewed initial recipes; do not add SKIP for ordinary binary payloads.
 - Each package documents its release channel, asset selection, dependencies,
   local build instructions, and known limitations.
 - Never build or install packages on the user's machine unless specifically
@@ -60,11 +60,19 @@ Before committing recipe or updater changes, run `./scripts/check-packages` and
 preview of affected packages against saved metadata when available; do not use
 live upstream data in unit tests. `scripts/far.py` contains shared maintenance;
 direct GitHub packages' `update.py` implements `select_candidate` and
-`render_recipe`. AUR packages use `scripts/far_aur.py`, with local changes in
-`far.patch`. Regenerate their metadata and manifest with
-`./scripts/import-aur --refresh <pkgbase>` after reviewed manual changes, and keep
-the overlay consistent with those changes. Preserve supporting files, signed
-metadata checks, epochs, pkgrel, and multi-architecture definitions.
+`render_recipe`. Other packages use `scripts/upstreams.py` discovery and
+`scripts/far_upstream.py` for source mapping, bounded downloads, rollback, and
+literal publication checks. Configuration declares first-party hosts, version/URL
+assignments, and exact checksum slots. Preserve every declared architecture and
+full vendor build identifier. Maintain packaging customizations directly; there
+are no AUR overlays or snapshot manifests. Supporting files, dependency changes,
+and signing keys require explicit review outside automated update PRs. Spotify
+must retain wget DLAGENTS, its epoch, and its signed metadata verification chain.
+Fritzing watches upstream source-version bump commits, not GitHub Releases:
+verify versions from immutable source metadata, pin the exact bump commit, and
+retain the parts pin for explicit compatibility review. Never follow arbitrary
+development commits within the same version or claim a bump proves a public
+release.
 Run `actionlint` after workflow changes. `scripts/workflow.py` is the boundary
 between unprivileged update preparation and PR publication: keep its patch path
 allowlist, payload bounds, and no-recipe-execution publication behavior intact.

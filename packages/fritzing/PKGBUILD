@@ -2,8 +2,7 @@
 # Contributor: Tolga HOŞGÖR <fasdfasdas@gmail.com>
 # Contributor: Henning Mueller <henning@orgizm.net>
 
-# This PKGBUILD is maintained on github:
-# https://github.com/michaellass/AUR
+# FAR owns this recipe; original import provenance is in README.md.
 
 pkgname=fritzing
 
@@ -13,21 +12,9 @@ pkgname=fritzing
 pkgver=1.0.8
 pkgrel=1
 
-# Tag version can be obtained from github release page. Sometimes this is the
-# version number itself, sometimes some CD-magicnumber thing. There can be
-# multiple CD-magicnumberthings for the same version number so it's a bit of a
-# guess what corresponds to the latest official release.
-#_tagver=0.9.8
-
-# This is probably close to what has been released
+# Reviewed upstream application and parts commits. Updates watch source-version
+# bump commits; see README.md before changing the parts pin.
 _gitrev=5aa56a510183c23084990a6b4481708cad24c15b
-
-# Parts come from a different respository and are not versioned anymore since
-# 2016. Sometimes we can get the revision by downloading the release build,
-# unpacking it and using `git show` on the resources/parts folder. Nowadays the
-# release build seems to be hidden behind a paywall. Then we need to guess
-# based on the master branch of the fritzing-parts repository and the date when
-# the release archive was created.
 _partsrev=27535f2fd02097be9bed229b75aa8e9be282a4a0
 
 pkgdesc='PCB layout prototyping application'

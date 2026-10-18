@@ -14,9 +14,9 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import far
+import far_upstream
+import upstreams
 import workflow
-import far_aur
-from test_aur import sources
 from test_updates import CONFIG, DIGEST, release
 
 
@@ -111,16 +111,21 @@ class PublicationTests(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which("makepkg") and shutil.which("shellcheck"), "requires Arch metadata tools")
-class AurPublicationTests(unittest.TestCase):
-    def test_new_support_files_survive_preparation_and_token_free_publication(self):
-        with tempfile.TemporaryDirectory(prefix="far-handoff-tests-") as directory:
+class UpstreamPublicationTests(unittest.TestCase):
+    def test_multi_source_format_prepares_and_publishes_without_arch_tools_in_publication(self):
+        with tempfile.TemporaryDirectory(prefix="far-upstream-handoff-") as directory:
             root = Path(directory)
             prepare_root = root / "prepare"
-            package = prepare_root / "packages" / "fixture"
-            package.mkdir(parents=True)
-            (package / "README.md").write_text("Fixture docs\n")
-            (package / ".nvchecker.toml").write_text('[fixture]\nsource="aur"\naur="fixture"\n')
-            far_aur.prepare_snapshot(package, "1" * 40, sources(), None)
+            package = prepare_root / "packages" / "rtk-bin"
+            shutil.copytree(ROOT / "packages/rtk-bin", package)
+            config = far.read_config(package)
+            payloads = []
+            for entry in config["sources"]:
+                name = entry.get("asset", "LICENSE")
+                url = (f"https://github.com/rtk-ai/rtk/releases/download/v1.0.2/{name}" if "asset" in entry
+                       else "https://github.com/rtk-ai/rtk/raw/v1.0.2/LICENSE")
+                payloads.append(upstreams.source(config, entry["variable"], url, digest=DIGEST, size=10))
+            selected = upstreams.candidate(config, "1.0.2", "https://github.com/rtk-ai/rtk/releases/tag/v1.0.2", payloads)
             publish_root = root / "publish"
             shutil.copytree(prepare_root, publish_root)
             for checkout in (prepare_root, publish_root):
@@ -128,22 +133,24 @@ class AurPublicationTests(unittest.TestCase):
                 subprocess.run(["git", "add", "."], cwd=checkout, check=True)
                 subprocess.run(["git", "-c", "user.name=FAR tests", "-c", "user.email=far@example.invalid",
                                 "commit", "-qm", "fixture"], cwd=checkout, check=True)
-            new_sources = sources("1.1") | {"new-support.txt": b"new support\n",
-                                             "keys/pgp/fixture.asc": b"\x00public signing key fixture\xff"}
             output = root / "outputs"
             with patch.object(workflow, "ROOT", prepare_root), \
-                    patch.object(far_aur, "fetch_snapshot", return_value=("2" * 40, new_sources)):
+                    patch.object(upstreams, "discover", return_value=selected), \
+                    patch.object(far_upstream, "hash_source", return_value=DIGEST):
                 workflow.prepare(package, output)
             values = dict(line.split("=", 1) for line in output.read_text().splitlines())
             report = json.loads(workflow.decode(values["report"]))
             with patch.object(workflow, "ROOT", publish_root), \
-                    patch.object(far, "generate_srcinfo", side_effect=AssertionError("recipe evaluated")):
-                workflow.apply_payload(publish_root / "packages" / "fixture",
-                                       workflow.decode(values["patch"]), report, root / "body.md")
-            self.assertEqual((publish_root / "packages/fixture/new-support.txt").read_bytes(), b"new support\n")
-            self.assertEqual((publish_root / "packages/fixture/keys/pgp/fixture.asc").read_bytes(),
-                             b"\x00public signing key fixture\xff")
-            far_aur.verify_manifest(publish_root / "packages" / "fixture")
+                    patch.object(far, "generate_srcinfo", side_effect=AssertionError("recipe evaluated")), \
+                    patch.object(far_upstream, "compare_versions", side_effect=AssertionError("Arch tools unavailable")), \
+                    patch.object(upstreams, "discover", side_effect=AssertionError("adapter evaluated")):
+                workflow.apply_payload(publish_root / "packages/rtk-bin", workflow.decode(values["patch"]),
+                                       report, root / "body.md")
+            installed_recipe = (publish_root / "packages/rtk-bin/PKGBUILD").read_text()
+            self.assertEqual(far.assignment(installed_recipe, "pkgver"), "1.0.2")
+            for entry in config["sources"]:
+                self.assertEqual(far_upstream.checksum_values(installed_recipe, entry["array"])[0], DIGEST)
+            far.check_package(publish_root / "packages/rtk-bin")
 
 
 if __name__ == "__main__":

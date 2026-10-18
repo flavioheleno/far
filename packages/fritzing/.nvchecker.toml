@@ -1,4 +1,8 @@
 [fritzing]
-source = "aur"
-aur = "fritzing"
-use_last_modified = true
+source = "upstream"
+mode = "fritzing"
+github = "fritzing/fritzing-app"
+branch = "develop"
+hosts = ["github.com", "api.github.com", "raw.githubusercontent.com"]
+assignments = ["pkgver", "_gitrev", "_partsrev"]
+sources = []

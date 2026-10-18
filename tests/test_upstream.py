@@ -2,8 +2,12 @@
 
 import hashlib
 import io
+import copy
 from pathlib import Path
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -235,6 +239,119 @@ class SignedSpotifyTests(unittest.TestCase):
             self.assertIn(f"{scheme}::/usr/bin/wget", recipe)
         self.assertIn("validpgpkeys=", recipe)
         self.assertIn("sha512sum -c", recipe)
+
+
+class FritzingDiscoveryTests(unittest.TestCase):
+    def setUp(self):
+        self.package = Path(__file__).resolve().parents[1] / "packages" / "fritzing"
+        self.config = far.read_config(self.package)
+        self.recipe = (self.package / "PKGBUILD").read_text()
+        self.head = "a" * 40
+        self.bump = "b" * 40
+
+    def fetch(self, url, config):
+        import plistlib
+        if url.endswith("FritzingInfo.plist"):
+            return plistlib.dumps({"CFBundleShortVersionString": self.version})
+        return f'<component><releases><release version="{self.version}"/></releases></component>'.encode()
+
+    def history(self):
+        return [{"sha": self.bump, "commit": {"message": "Bump version to 1.0.9"}},
+                {"sha": "c" * 40, "commit": {"message": "Bump version to 1.0.8"}}]
+
+    def test_current_source_version_keeps_pins_without_using_github_releases(self):
+        self.version = "1.0.8"
+        with patch.object(upstreams, "fetch", side_effect=self.fetch), \
+                patch.object(upstreams, "request_json", return_value=[{"sha": self.head}]) as request, \
+                patch.object(upstreams, "github_releases", side_effect=AssertionError("unused releases feed")):
+            selected = upstreams.fritzing(self.config, self.recipe)
+        upstream.validate_candidate(selected, self.config)
+        self.assertEqual(selected["assignments"]["_gitrev"], far.assignment(self.recipe, "_gitrev"))
+        self.assertEqual(request.call_count, 1)
+
+    def test_new_source_version_selects_exact_bump_and_retains_parts(self):
+        self.version = "1.0.9"
+        with patch.object(upstreams, "fetch", side_effect=self.fetch), \
+                patch.object(upstreams, "request_json", side_effect=[[{"sha": self.head}], self.history()]) as request:
+            selected = upstreams.fritzing(self.config, self.recipe)
+        upstream.validate_candidate(selected, self.config)
+        self.assertEqual(selected["assignments"]["_gitrev"], self.bump)
+        self.assertEqual(selected["assignments"]["_partsrev"], far.assignment(self.recipe, "_partsrev"))
+        self.assertEqual(selected["release_url"], f"https://github.com/fritzing/fritzing-app/commit/{self.bump}")
+        self.assertIn(f"sha={self.head}&path=src%2Fversion%2Fversion.cpp", request.call_args.args[0])
+
+    def test_missing_or_ambiguous_version_bumps_require_manual_review(self):
+        self.version = "1.0.9"
+        ambiguous = [{"sha": "d" * 40, "commit": {"message": "Bump version to 1.0.9"}}, *self.history()]
+        for history in ([], ambiguous):
+            with patch.object(upstreams, "fetch", side_effect=self.fetch), \
+                    patch.object(upstreams, "request_json", side_effect=[[{"sha": self.head}], history]):
+                with self.assertRaisesRegex(far.MaintenanceError, "review source pins manually"):
+                    upstreams.fritzing(self.config, self.recipe)
+
+    def test_message_without_matching_appstream_metadata_is_rejected(self):
+        self.version = "1.0.9"
+        def fetch(url, config):
+            if url.endswith(".xml"):
+                return b'<component><releases><release version="1.0.8"/></releases></component>'
+            return self.fetch(url, config)
+        with patch.object(upstreams, "fetch", side_effect=fetch), \
+                patch.object(upstreams, "request_json", side_effect=[[{"sha": self.head}], self.history()]):
+            with self.assertRaisesRegex(far.MaintenanceError, "does not confirm"):
+                upstreams.fritzing(self.config, self.recipe)
+
+
+class UpstreamUpdateTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.package = Path(temporary.name) / "enpass-bin"
+        shutil.copytree(Path(__file__).resolve().parents[1] / "packages/enpass-bin", self.package)
+        self.config = far.read_config(self.package)
+        self.original = (self.package / "PKGBUILD").read_text()
+        self.metadata = (self.package / ".SRCINFO").read_bytes()
+
+    def selected(self, version="6.12.7.2300"):
+        payload = upstreams.source(self.config, "_url", f"https://apt.enpass.io/pool/main/e/enpass/enpass_{version}_amd64.deb",
+                                   digest=DIGEST, size=len(PAYLOAD))
+        return upstreams.candidate(self.config, version, self.config["release_url"], [payload])
+
+    def test_applied_update_resets_pkgrel_and_is_idempotent(self):
+        data = self.selected()
+        with patch.object(upstreams, "discover", side_effect=lambda *args: copy.deepcopy(data)), \
+                patch.object(upstream, "hash_source", return_value=DIGEST) as download, \
+                patch.object(upstream, "generate_srcinfo", return_value="generated metadata\n"), \
+                patch.object(upstream, "check_package"):
+            result = far.update_one(self.package, apply=True)
+            again = far.update_one(self.package, apply=True)
+        self.assertEqual(result["status"], "updated")
+        self.assertEqual(again["status"], "up-to-date")
+        self.assertEqual(download.call_count, 1)
+        self.assertEqual(far.assignment((self.package / "PKGBUILD").read_text(), "pkgrel"), "1")
+
+    def test_failed_validation_rolls_back_recipe_and_metadata(self):
+        for failure in ("generate_srcinfo", "check_package"):
+            with patch.object(upstreams, "discover", return_value=self.selected()), \
+                    patch.object(upstream, "hash_source", return_value=DIGEST), \
+                    patch.object(upstream, "generate_srcinfo", return_value="new metadata\n"), \
+                    patch.object(upstream, "check_package"), \
+                    patch.object(upstream, failure, side_effect=far.MaintenanceError("fixture failure")):
+                with self.assertRaisesRegex(far.MaintenanceError, "fixture failure"):
+                    far.update_one(self.package, apply=True)
+            self.assertEqual((self.package / "PKGBUILD").read_text(), self.original)
+            self.assertEqual((self.package / ".SRCINFO").read_bytes(), self.metadata)
+
+    def test_downgrade_and_same_version_mutation_are_rejected_before_download(self):
+        for version in ("5.0.0", far.assignment(self.original, "pkgver")):
+            with patch.object(upstreams, "discover", return_value=self.selected(version)), \
+                    patch.object(upstream, "hash_source", side_effect=AssertionError("should not download")):
+                with self.assertRaises(far.MaintenanceError):
+                    far.update_one(self.package, apply=True)
+
+    def test_no_configuration_tracks_aur(self):
+        root = Path(__file__).resolve().parents[1]
+        for package in far.package_paths(root=root):
+            self.assertIn(far.read_config(package)["source"], {"github", "upstream"})
 
 
 if __name__ == "__main__":

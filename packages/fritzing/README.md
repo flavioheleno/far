@@ -20,8 +20,10 @@ Or enter this directory and run `makepkg -si`; makepkg builds locally and pacman
 
 ## Maintenance
 
-`.aur.json` records the current AUR revision and the SHA-256 hashes of the maintained recipe/support files. `.SRCINFO` is regenerated locally. Scheduled updates propose AUR changes, including packaging changes at the same version, as a PR. Upstream source checksums and signature verification are retained and checked by makepkg on your machine. GitHub does not download all vendor payloads or build this package.
+FAR watches upstream's source-version history on the `develop` branch, following commits such as [`da68b653842c4e35fb2e3e3453384d2fbdb9e4ae` (Bump version to 1.0.8)](https://github.com/fritzing/fritzing-app/commit/da68b653842c4e35fb2e3e3453384d2fbdb9e4ae). It does not use GitHub Releases, source tags, AUR, or website announcements for discovery.
 
-`far.patch` records FAR's local changes and is reapplied to every new snapshot. A conflict stops the update for manual review.
+The updater resolves an immutable branch head and reads `CFBundleShortVersionString` from `FritzingInfo.plist` there. If this version is newer, it scans the history of `src/version/version.cpp` at that same head for a unique matching version-bump commit. It checks the plist and AppStream release version at the bump commit, then proposes that exact application commit in `_gitrev`. A commit message alone is insufficient. Missing/ambiguous bumps, inconsistent metadata, and incomplete history scans fail visibly for manual review.
 
-AUR updates depend on the AUR maintainer publishing a new recipe. Manual/runtime verification belongs on the local machine; a passing metadata check does not establish a successful build or launch.
+For the current version, the existing reviewed application commit is preserved, including its post-bump fixes. The parts revision stays explicitly pinned; there is no versioned parts release stream. Review parts compatibility, Arch patches, dependencies, and upstream's release status before merging. A source version bump can precede a publicly announced release, so a PR is a discovery signal requiring review.
+
+FAR owns the recipe and supporting patches; AUR attribution records only the initial import. Compilation and runtime verification happen locally. `--verify-current` does not download or build pinned VCS sources. If automatic selection stops, inspect the upstream history, choose full application and parts commit hashes explicitly, update the version and packaging revision, regenerate `.SRCINFO`, and run the repository checks.

@@ -13,7 +13,7 @@ from urllib.request import Request, urlopen
 
 from far import MaintenanceError, assignment, check_package, generate_srcinfo, replace_assignment
 
-MODES = {"github-assets", "freecad-weekly", "debian", "tableplus", "saleae", "sublime", "fritzing"}
+MODES = {"github-assets", "freecad-weekly", "debian", "saleae", "sublime", "fritzing"}
 MAX_DOWNLOAD = 2 * 1024 ** 3
 
 
@@ -24,8 +24,14 @@ def validate_config(config: dict) -> None:
     if not hosts or any(not isinstance(host, str) or not re.fullmatch(r"[a-z0-9.-]+", host) for host in hosts):
         raise MaintenanceError("Declare explicit upstream HTTPS hosts")
     fields = config.get("assignments", [])
-    if "pkgver" not in fields or any(not re.fullmatch(r"pkgver|_[A-Za-z0-9_]+", field) for field in fields):
+    if ("pkgver" not in fields or len(fields) != len(set(fields))
+            or any(not re.fullmatch(r"pkgver|_[A-Za-z0-9_]+", field) for field in fields)):
         raise MaintenanceError("Declare literal version and upstream assignments")
+    if config["mode"] in {"github-assets", "freecad-weekly", "fritzing"}:
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", config.get("github", "")):
+            raise MaintenanceError("Declare an explicit upstream GitHub repository")
+    if config["mode"] == "fritzing" and not re.fullmatch(r"[A-Za-z0-9._/-]+", config.get("branch", "")):
+        raise MaintenanceError("Declare the upstream source-version branch")
     identities = []
     for source in config.get("sources", []):
         if (source.get("variable") not in fields or not source["variable"].startswith("_url")
@@ -211,7 +217,13 @@ def publication_body(package: Path, recipe: str, report: dict, config: dict) -> 
         if value != source.get("checksum") or value == "SKIP":
             raise MaintenanceError("Patched checksum does not match the update report")
         rows.append(f"- {source['url']}\n  {source['algorithm'].upper()}: `{value}`")
+    rows.extend(f"- `{key}`: `{value}`" for key, value in report["assignments"].items()
+                if key not in {"pkgver", *(item["variable"] for item in report["sources"])})
+    verification = ("Payloads were hashed and metadata checked." if report["sources"] else
+                    "The application commit was resolved from upstream's verified source-version bump. "
+                    "A version bump may precede a public release. "
+                    "The parts pin is retained: review its compatibility and the source patches locally.")
     return (f"Update `{package.name}` from **{report['old_version']}** to **{report['version']}**.\n\n"
             f"Upstream: {report['release_url']}\n\n" + "\n".join(rows) + "\n\n"
-            "Sources were resolved directly from upstream. Payloads were hashed and metadata checked. "
+            f"Sources were resolved directly from upstream. {verification} "
             "No package was built or uploaded. Review packaging compatibility and test locally before installation.\n")

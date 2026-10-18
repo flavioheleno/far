@@ -3,14 +3,17 @@
 import json
 import hashlib
 from pathlib import Path
+import plistlib
 import re
 import subprocess
 import tempfile
 from datetime import datetime
 from html import unescape
 from urllib.parse import urljoin
+from urllib.parse import quote
+from xml.etree import ElementTree
 
-from far import MaintenanceError, assignment, github_releases, version_key
+from far import MaintenanceError, assignment, github_releases, request_json, version_key
 from far_upstream import compare_versions, fetch, open_upstream, validate_url
 
 
@@ -235,6 +238,68 @@ def saleae(config: dict) -> dict:
     return candidate(config, match[1], config["release_url"], [payload])
 
 
+def fritzing_version(config: dict, commit: str) -> str:
+    if not re.fullmatch(r"[a-f0-9]{40}", commit):
+        raise MaintenanceError("Fritzing source revision must be a complete commit hash")
+    base = f"https://raw.githubusercontent.com/{config['github']}/{commit}/"
+    try:
+        version = plistlib.loads(fetch(base + "FritzingInfo.plist", config))["CFBundleShortVersionString"]
+    except (ValueError, KeyError, ElementTree.ParseError) as error:
+        raise MaintenanceError("Cannot read Fritzing's source version metadata") from error
+    if not re.fullmatch(r"\d+(?:\.\d+){2}", version):
+        raise MaintenanceError("Unrecognized Fritzing source version")
+    return version
+
+
+def fritzing(config: dict, recipe: str) -> dict:
+    repository = config["github"]
+    branch = quote(config["branch"], safe="")
+    head = request_json(f"https://api.github.com/repos/{repository}/commits?sha={branch}&per_page=1")
+    if len(head) != 1:
+        raise MaintenanceError("Expected one Fritzing branch head")
+    head_sha = head[0]["sha"]
+    version = fritzing_version(config, head_sha)
+    current = assignment(recipe, "pkgver")
+    revision = assignment(recipe, "_gitrev")
+    parts = assignment(recipe, "_partsrev")
+    if compare_versions(version, current) > 0:
+        bumps = []
+        finished = False
+        # Inspect only source-version history at the immutable head observed above.
+        path = quote("src/version/version.cpp", safe="")
+        for page in range(1, 11):
+            history = request_json(f"https://api.github.com/repos/{repository}/commits?sha={head_sha}&path={path}&per_page=100&page={page}")
+            for entry in history:
+                message = entry["commit"]["message"].splitlines()[0]
+                match = re.fullmatch(r"(?:Bump|Set|Update) version(?: to)? v?(\d+(?:\.\d+){2})[.!]?", message, re.I)
+                if not match:
+                    continue
+                if compare_versions(match[1], current) <= 0:
+                    finished = True
+                    break
+                if match[1] == version:
+                    bumps.append(entry["sha"])
+            if finished or len(history) < 100:
+                finished = True
+                break
+        if not finished or len(set(bumps)) != 1:
+            raise MaintenanceError(f"Fritzing source version {version} has no unique version-bump commit; review source pins manually")
+        revision = bumps[0]
+        if fritzing_version(config, revision) != version:
+            raise MaintenanceError("Fritzing version-bump message disagrees with source metadata")
+        try:
+            appdata = ElementTree.fromstring(fetch(
+                f"https://raw.githubusercontent.com/{repository}/{revision}/org.fritzing.Fritzing.appdata.xml", config))
+        except ElementTree.ParseError as error:
+            raise MaintenanceError("Invalid Fritzing AppStream metadata") from error
+        if version not in {entry.get("version") for entry in appdata.findall("./releases/release")}:
+            raise MaintenanceError("Fritzing AppStream metadata does not confirm the version bump")
+    if any(not re.fullmatch(r"[a-f0-9]{40}", value) for value in (revision, parts)):
+        raise MaintenanceError("Fritzing source revisions must be complete commit hashes")
+    return candidate(config, version, f"https://github.com/{repository}/commit/{revision}", [],
+                     fields={"_gitrev": revision, "_partsrev": parts})
+
+
 def discover(package, config: dict, recipe: str) -> dict:
     if config["mode"] == "github-assets":
         return github_assets(config)
@@ -246,4 +311,6 @@ def discover(package, config: dict, recipe: str) -> dict:
         return sublime(config)
     if config["mode"] == "saleae":
         return saleae(config)
+    if config["mode"] == "fritzing":
+        return fritzing(config, recipe)
     raise MaintenanceError(f"Upstream discovery not implemented: {config['mode']}")
