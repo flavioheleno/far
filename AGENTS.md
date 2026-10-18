@@ -23,6 +23,8 @@ files together; keep shared orchestration in `scripts/`.
   reviewed initial recipes; do not add SKIP for ordinary binary payloads.
 - Each package documents its release channel, asset selection, dependencies,
   local build instructions, and known limitations.
+- Sublime Text is intentionally excluded; use its official pacman repository.
+  Do not recreate a local Sublime Text recipe as part of routine maintenance.
 - Never build or install packages on the user's machine unless specifically
   requested. Metadata checks and updater tests are the normal verification.
 
@@ -44,6 +46,11 @@ with `pull_request_target` or another privileged event.
 - Read the root README and relevant package README before editing.
 - Update documentation in the same commit as the behavior it describes. Describe
   current functionality rather than future promises.
+- Update both root package tables when adding or removing packages. Keep declared
+  architectures consistent with `.SRCINFO`, and distinguish retained architecture
+  support from runtime validation on the local x86_64 machine. Keep changing
+  versions, source pins, and checksums authoritative in `PKGBUILD`/`.SRCINFO`;
+  label historical verification notes with the initial version.
 - Make atomic Conventional Commits (`docs:`, `feat:`, `fix:`, `ci:`, `test:`).
   Stage named files and inspect the staged diff. Do not include unrelated work.
 - Use `rg` for searches. When RTK is installed, prefix shell tool calls with
@@ -59,8 +66,8 @@ Before committing recipe or updater changes, run `./scripts/check-packages` and
 `python3 -m unittest discover -s tests -v`. Both are recipe-only checks. Run a
 preview of affected packages against saved metadata when available; do not use
 live upstream data in unit tests. `scripts/far.py` contains shared maintenance;
-direct GitHub packages' `update.py` implements `select_candidate` and
-`render_recipe`. Other packages use `scripts/upstreams.py` discovery and
+the Bambu Studio/Extrudo `source = "github"` packages' `update.py` implements
+`select_candidate` and `render_recipe`. Other packages use `scripts/upstreams.py` discovery and
 `scripts/far_upstream.py` for source mapping, bounded downloads, rollback, and
 literal publication checks. Configuration declares first-party hosts, version/URL
 assignments, and exact checksum slots. Preserve every declared architecture and
@@ -73,6 +80,17 @@ verify versions from immutable source metadata, pin the exact bump commit, and
 retain the parts pin for explicit compatibility review. Never follow arbitrary
 development commits within the same version or claim a bump proves a public
 release.
+
+`.nvchecker.toml` is FAR's own configuration, read with Python's `tomllib`; the
+workflow does not invoke nvchecker. Available shared modes are `github-assets`,
+`freecad-weekly`, `debian`, `saleae`, and `fritzing`. Keep new adapters compatible
+with the publication version format (numeric dotted components, optionally an
+underscore and numeric dotted date), or extend that format with focused tests.
+Reset `pkgrel` on new upstream versions; bump it manually for packaging-only
+changes and preserve epochs. Automated PRs may modify only `PKGBUILD` and
+`.SRCINFO`. Changes to updater configuration, documentation, or supporting files
+belong in a separate reviewed maintenance commit.
+
 Run `actionlint` after workflow changes. `scripts/workflow.py` is the boundary
 between unprivileged update preparation and PR publication: keep its patch path
 allowlist, payload bounds, and no-recipe-execution publication behavior intact.

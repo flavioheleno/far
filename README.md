@@ -3,7 +3,9 @@
 Personal Arch Linux package recipes for an x86_64 machine, maintained at
 [flavioheleno/far](https://github.com/flavioheleno/far). GitHub Actions keeps
 the recipes current through pull requests. Build and install packages locally
-with [rua](https://github.com/vn971/rua) or `makepkg` and `pacman`.
+with [rua](https://github.com/vn971/rua) or `makepkg` and `pacman`. Recipes track
+upstream projects directly; package compilation and installation happen on your
+machine.
 
 ## Repository contract
 
@@ -43,37 +45,58 @@ AGENTS.md              Instructions for future repository work
 
 ## Packages
 
-| Package | Architecture | Release channel |
+| Package | Declared architectures | Release channel |
 | --- | --- | --- |
 | [bambustudio-appimage](packages/bambustudio-appimage/) | x86_64 | Stable and beta |
-| [rtk-bin](packages/rtk-bin/) | x86_64 supported | Stable RTK releases |
-| [spotify](packages/spotify/) | x86_64 supported | Vendor testing channel |
-| [tableplus](packages/tableplus/) | x86_64 supported | Vendor Linux releases |
-| [saleae-logic2](packages/saleae-logic2/) | x86_64 supported | Vendor Logic 2 releases |
-| [tailwindcss-bin](packages/tailwindcss-bin/) | x86_64 supported | Stable standalone CLI |
-| [enpass-bin](packages/enpass-bin/) | x86_64 supported | Vendor Enpass releases |
-| [freecad-weekly-appimage](packages/freecad-weekly-appimage/) | x86_64 supported | Weekly FreeCAD builds |
-| [fritzing](packages/fritzing/) | x86_64 supported | Source-version bumps; pinned commits |
+| [rtk-bin](packages/rtk-bin/) | x86_64, aarch64 | Stable RTK releases |
+| [spotify](packages/spotify/) | x86_64 | Vendor testing channel |
+| [tableplus](packages/tableplus/) | x86_64, aarch64 | Vendor Linux releases |
+| [saleae-logic2](packages/saleae-logic2/) | x86_64 | Vendor Logic 2 releases |
+| [tailwindcss-bin](packages/tailwindcss-bin/) | x86_64, aarch64 | Stable standalone CLI |
+| [enpass-bin](packages/enpass-bin/) | x86_64 | Vendor stable releases |
+| [freecad-weekly-appimage](packages/freecad-weekly-appimage/) | x86_64 | Weekly FreeCAD builds |
+| [fritzing](packages/fritzing/) | x86_64, aarch64, i686 | Source-version bumps; pinned commits |
 | [extrudo-appimage](packages/extrudo-appimage/) | x86_64 | Stable releases |
+
+The local target is Arch Linux x86_64. Retained architecture declarations do not
+imply that FAR has built or tested packages on those architectures. `PKGBUILD`
+and generated `.SRCINFO` are authoritative for current versions and dependencies.
+
+Sublime Text is intentionally excluded. Use its
+[official pacman repository](https://www.sublimetext.com/docs/linux_repositories.html#pacman)
+for stable or development builds.
 
 ## Local build and installation
 
 Clone `https://github.com/flavioheleno/far.git` and review the package recipe and
-its history. After pulling
-updates with `git pull --ff-only`, use rua's local-directory command:
+its history. From the checkout root, pull reviewed updates and build the local
+recipe with rua:
 
 ```sh
+git pull --ff-only
 rua builddir ./packages/bambustudio-appimage
 ```
 
-Or enter the package directory and use `makepkg --syncdeps`, then install the
-resulting local archive with `sudo pacman -U <package-file>`. `makepkg -si`
-combines those steps. See the package README for dependencies, installation
-details, and manual runtime checks.
+Alternatively, enter the package directory and build with makepkg:
+
+```sh
+cd packages/bambustudio-appimage
+makepkg --syncdeps
+makepkg --packagelist
+```
+
+Review the reported local archive and install it with
+`sudo pacman -U <package-file>`. `makepkg -si` combines the build and installation
+steps. When using rua, use the archive path reported by rua for any manual
+installation; its output directory can differ from the FAR checkout. Run build
+tools as your normal user; pacman requests elevation for installation.
 
 `rua install` and `rua upgrade` normally fetch AUR recipes. They do not discover
 FAR's GitHub updates. Use the local checkout when consuming FAR recipes, and keep
-your AUR helper from independently replacing FAR-managed packages.
+your AUR helper from independently replacing FAR-managed packages. Rua supports
+`--ignore` for selective AUR upgrades; consult its help before choosing your
+exclusions. Dependencies outside the official repositories must be reviewed and
+made available locally; FAR does not maintain the whole dependency tree.
 
 ## Metadata maintenance
 
@@ -87,10 +110,13 @@ makepkg --printsrcinfo > .SRCINFO
 
 ## Recipe checks and updates
 
-Requirements: Arch Linux, Python 3.11+, `base-devel` (including `vercmp`),
-`shellcheck`, `git`, and `gnupg`.
-The Python tooling uses only the standard library. Commands work from any
-working directory; the paths below assume the repository root.
+Requirements: Arch Linux, Python 3.11+, `base-devel`, `shellcheck`, `git`, and
+`gnupg`. Arch's [pacman package](https://archlinux.org/packages/core/x86_64/pacman/files/)
+supplies `makepkg` and `vercmp`. Install
+`actionlint` when checking workflows. Package builds additionally need the
+dependencies declared in each recipe; rua has its own installation requirements.
+The Python tooling uses only the standard library. The entry-point scripts
+locate FAR from their own paths; the examples below assume the repository root.
 
 ```sh
 ./scripts/check-packages
@@ -100,18 +126,32 @@ python3 -m unittest discover -s tests -v
 ./scripts/update-packages --apply bambustudio-appimage
 ```
 
+For a report covering every package, create the ignored report directory first:
+
+```sh
+mkdir -p .far-updates
+./scripts/update-packages --report .far-updates/report.json
+```
+
 The checker runs Bash syntax checks, ShellCheck (excluding package metadata and
 makepkg-provided variable false positives), and compares regenerated `.SRCINFO`
 with the committed file. These checks never call `build()`, `prepare()`, or
 `package()` and do not download package sources. Metadata generation does source
 the recipe as shell code: only evaluate recipes you trust.
 
-The updater defaults to a read-only preview. `.nvchecker.toml` selects either a
-direct GitHub AppImage source or the shared direct upstream interface. `--apply` updates the managed
-recipe files and regenerates `.SRCINFO`, rolling back if validation fails.
-Both commands accept one or more package bases;
-omitting them selects all packages. Failures are reported independently and
-produce a nonzero exit code.
+The updater defaults to a preview that leaves recipes unchanged but still
+contacts upstream and verifies downloads when required. `.nvchecker.toml` is
+read by FAR's own Python tooling, despite its historical filename; running
+nvchecker is not part of this workflow. `source = "github"` selects the Bambu
+Studio/Extrudo adapter interface, and `source = "upstream"` selects a shared
+adapter. `--apply` writes the recipe and regenerates `.SRCINFO`, restoring both
+files if validation fails.
+
+The checker and updater accept one or more package bases; omitting them selects
+all packages. Failures are reported independently and produce a nonzero exit
+code. With `--apply`, successful changes to other packages remain in place when
+one package fails. Review and commit applied changes with the package's docs;
+`--apply` neither creates a Git commit nor installs anything.
 
 The `source = "upstream"` adapter interface supports direct vendor discovery,
 multiple architectures, and SHA-256/SHA-512 source arrays. Configuration declares
@@ -121,20 +161,24 @@ literal recipe values without executing the recipe. These adapters use Arch's
 `vercmp`, including dated package versions. `--verify-current` also forces
 payload verification for this interface.
 
-For direct GitHub sources, `update.py` selects the release and exact asset. New
-assets are downloaded and hashed. Already-current recipes use GitHub's asset digest to detect upstream changes
-without downloading the asset again. Use `--verify-current` to force a fresh
-download and hash; assets without a published digest are always downloaded.
+For the two `source = "github"` packages, `update.py` selects the release and
+exact asset. New assets are downloaded and hashed. Already-current recipes use
+GitHub's asset digest to detect upstream changes without downloading the asset
+again. Use `--verify-current` to force a fresh download and hash; assets without
+a published digest are always downloaded.
 Changed content at the same version, ambiguous assets, and downgrades require
 manual review. Temporary downloads are hashed as a stream and never saved.
 An optional `GH_TOKEN` raises the GitHub API rate limit; it is not passed to
 `makepkg`. Release discovery follows up to 1,000 release entries, failing visibly
 instead of silently truncating a larger history.
 
-The other packages use the shared interface in `scripts/upstreams.py`:
+All packages track first-party sources. Bambu Studio and Extrudo use their
+package-specific `update.py`; the others use `scripts/upstreams.py`:
 
 | Package | First-party discovery source |
 | --- | --- |
+| Bambu Studio | [GitHub stable and beta releases](https://github.com/bambulab/BambuStudio/releases), Ubuntu 24 x86_64 AppImage |
+| Extrudo | [GitHub stable releases](https://github.com/zoltanf/extrudo/releases), Linux x86_64 AppImage |
 | RTK | [GitHub stable releases](https://github.com/rtk-ai/rtk/releases) |
 | Tailwind CSS | [GitHub stable releases](https://github.com/tailwindlabs/tailwindcss/releases) |
 | FreeCAD weekly | [GitHub weekly releases](https://github.com/FreeCAD/FreeCAD/releases); base version from `version.json` at the selected tag |
@@ -204,8 +248,17 @@ Only text changes to the selected PKGBUILD and `.SRCINFO` are accepted. Supporti
 files and signing-key changes require a separate reviewed maintenance commit.
 
 PRs include the old/new versions, upstream link, and asset/checksum or source-pin
-details. Repeat runs reuse the same PR and do nothing when already current. Merge manually after review. Source hashing and metadata checks are not
-a substitute for a successful local build and runtime test.
+details. Repeat runs reuse the same PR and do nothing when already current.
+Review the diff and any dependency, extraction-layout, patch, or signing-key
+changes required by the upstream release. Merge manually, pull FAR locally, and
+build/install the affected package. Source hashing and metadata checks do not
+establish a successful local build or runtime test.
+
+When discovery fails, inspect the package's job log or local JSON report. Missing
+assets, mismatched architecture versions, changed same-version sources, and
+unrecognized Fritzing version bumps need review. DNS, HTTP, and API rate-limit
+errors can prevent discovery without establishing that recipes are current.
+Correct the reported cause and retry the preview before applying an update.
 
 ### Repository setup
 
@@ -218,6 +271,11 @@ a substitute for a successful local build and runtime test.
    initial configuration. Review the Actions logs for failures.
 4. After the first validation run, configure the `Recipe checks` status as a
    required check on `main` if you want branch protection. Merge manually.
+
+These are setup instructions, not a record of enabled repository settings.
+Confirm the latest successful runs in GitHub; local offline tests cannot verify
+the live upstream endpoints or repository permissions. A local preview is
+`./scripts/update-packages`; it needs network access and may hash large payloads.
 
 By default, PR creation uses the built-in `GITHUB_TOKEN`, requiring no personal
 token or repository secrets. GitHub currently places CI runs for PRs created by
@@ -269,6 +327,14 @@ For the shared upstream interface:
 4. Check metadata and run the offline tests before committing. Vendor signing-key
    rotations and changes to build patches/dependencies need explicit review.
 
+Existing shared modes are `github-assets` (RTK/Tailwind), `freecad-weekly`,
+`debian` (Spotify/TablePlus/Enpass), `saleae`, and `fritzing`. Automated updates
+reset `pkgrel` to `1` on a new upstream version and preserve any `epoch`. For a
+packaging-only change, bump `pkgrel` manually and regenerate `.SRCINFO`. New
+adapters must use versions compatible with publication's numeric dotted version
+format, optionally followed by an underscore and numeric dotted weekly date,
+or explicitly extend and test that interface.
+
 For direct GitHub updates such as Bambu Studio:
 
 1. Add `packages/<pkgbase>/PKGBUILD`, supporting files, and a README recording
@@ -283,8 +349,11 @@ For direct GitHub updates such as Bambu Studio:
    shapes; do not force unrelated packages into the AppImage assumptions.
 4. Generate `.SRCINFO` and add offline selection/integrity tests.
 
-Run all checks and update the package table before committing. Workflows discover
-package directories automatically. Add and review nonofficial dependencies
-explicitly; automation does not recursively import or build AUR dependencies.
+Run all checks and update both package tables before committing. Keep live
+version/checksum values in `PKGBUILD` and `.SRCINFO`; label historical examples
+with their initial version so update PRs cannot make prose silently stale.
+Workflows discover package directories automatically. Add and review nonofficial
+dependencies explicitly; automation does not recursively import or build AUR
+dependencies.
 
 See [AGENTS.md](AGENTS.md) for the maintenance conventions.

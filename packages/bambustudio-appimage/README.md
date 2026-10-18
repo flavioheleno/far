@@ -7,8 +7,9 @@ upstream version (`v02.08.04.57` becomes `2.8.4.57`).
 
 ## Provenance and packaging
 
-Based on Joao Costa's [AUR recipe](https://aur.archlinux.org/packages/bambustudio-appimage)
-at commit [`80b5a43634ff1478789092d4a700259c4a1acdce`](https://aur.archlinux.org/cgit/aur.git/commit/?h=bambustudio-appimage&id=80b5a43634ff1478789092d4a700259c4a1acdce),
+Based on Joao Costa's
+[AUR recipe](https://aur.archlinux.org/packages/bambustudio-appimage) at commit
+[`80b5a43634ff1478789092d4a700259c4a1acdce`](https://aur.archlinux.org/cgit/aur.git/commit/?h=bambustudio-appimage&id=80b5a43634ff1478789092d4a700259c4a1acdce),
 dated 2026-09-25. Contributor attribution is retained in `PKGBUILD`.
 
 FAR retains the package name, runtime dependency (`webkit2gtk-4.1`), provided
@@ -30,8 +31,9 @@ From the root of a current FAR checkout, build with rua:
 rua builddir ./packages/bambustudio-appimage
 ```
 
-This builds, reviews, and installs the local recipe. Rua's usual `install` and
-`upgrade` commands look up AUR packages and do not track this GitHub monorepo.
+This builds the local recipe through rua's jail. Use rua's reported output path
+for any manual archive installation. Rua's usual `install` and `upgrade`
+commands look up AUR packages and do not track this GitHub monorepo.
 
 Alternatively, using `base-devel` and the declared dependencies:
 
@@ -47,13 +49,20 @@ before installing newly updated recipes. Read the recipe and diff before use.
 
 ## Updates and checks
 
-`.nvchecker.toml` declares the GitHub source, beta policy, and version
-normalization. `update.py` resolves the exact timestamped Ubuntu 24 asset, accepts
-the known `ubu24`, `ubuntu24.04`, and `ubuntu-24.04` naming forms, and rejects
-missing or ambiguous assets. It selects the highest complete version among
-eligible published releases, independently of API listing order. Changing
+FAR's own `.nvchecker.toml` declares the GitHub source, beta policy, and version
+normalization. `update.py` resolves the exact timestamped Ubuntu 24 asset,
+accepts the known `ubu24`, `ubuntu24.04`, and `ubuntu-24.04` naming forms, and
+rejects missing or ambiguous assets. It selects the highest complete version
+among eligible published releases, independently of API listing order. Changing
 `pkgver` alone cannot update this recipe correctly.
 
-Current source SHA-256 was checked against the downloaded 243,841,528-byte asset
-and GitHub's release-asset digest. Metadata and source integrity checks do not
-prove GUI startup or compatibility with a particular desktop or printer.
+The initial `2.8.4.57` source SHA-256 was checked against its downloaded
+243,841,528-byte asset and GitHub's release-asset digest. The current version,
+asset, and checksum are recorded in `PKGBUILD` and generated `.SRCINFO`.
+Metadata and source integrity checks do not prove GUI startup or compatibility
+with a particular desktop or printer.
+
+See the [repository guide](../../README.md#local-build-and-installation) for the
+shared local workflow and
+[maintenance commands](../../README.md#recipe-checks-and-updates) for update
+previews, applying recipe changes, and troubleshooting.
