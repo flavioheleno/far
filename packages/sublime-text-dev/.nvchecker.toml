@@ -1,0 +1,4 @@
+[sublime-text-dev]
+source = "aur"
+aur = "sublime-text-dev"
+use_last_modified = true
