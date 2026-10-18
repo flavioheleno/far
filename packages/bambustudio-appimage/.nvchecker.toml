@@ -1,0 +1,9 @@
+[bambustudio-appimage]
+source = "github"
+github = "bambulab/BambuStudio"
+use_max_release = true
+include_prereleases = true
+prefix = "v"
+from_pattern = '^0*(\d+)\.0*(\d+)\.0*(\d+)\.0*(\d+)$'
+to_pattern = '\1.\2.\3.\4'
+sort_version_key = "vercmp"

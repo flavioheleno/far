@@ -1,0 +1,35 @@
+# Maintainer: Flavio Heleno <flaviohbatista@gmail.com>
+# Contributor: Joao Costa <arch@joaocosta.dev>
+# Based on AUR bambustudio-appimage; see README.md for provenance.
+pkgname=bambustudio-appimage
+pkgver=2.8.4.57
+pkgrel=1
+pkgdesc='PC software for Bambu Lab and other 3D printers'
+arch=('x86_64')
+url='https://github.com/bambulab/BambuStudio'
+license=('AGPL-3.0')
+depends=('webkit2gtk-4.1')
+provides=('bambustudio')
+conflicts=('bambustudio' 'bambustudio-git' 'bambustudio-bin')
+options=('!strip' '!debug')
+
+_upstream_tag='v02.08.04.57'
+_asset='BambuStudio_ubu24-v02.08.04.57-20260922164607.AppImage'
+source=("BambuStudio-${pkgver}.AppImage::${url}/releases/download/${_upstream_tag}/${_asset}")
+sha256sums=('4870e355fa5e98e3a47bcd196b7ae16c2e9c15896a81ceaabe09ddbefa80d2f0')
+
+prepare() {
+  chmod +x "BambuStudio-${pkgver}.AppImage"
+  ./"BambuStudio-${pkgver}.AppImage" --appimage-extract > /dev/null
+}
+
+package() {
+  install -Dm755 "BambuStudio-${pkgver}.AppImage" "$pkgdir/usr/bin/bambustudio"
+  install -Dm644 squashfs-root/BambuStudio.png \
+    "$pkgdir/usr/share/pixmaps/BambuStudio.png"
+
+  sed 's|^Exec=AppRun|Exec=/usr/bin/bambustudio|' \
+    squashfs-root/BambuStudio.desktop > BambuStudio.desktop
+  install -Dm644 BambuStudio.desktop \
+    "$pkgdir/usr/share/applications/BambuStudio.desktop"
+}

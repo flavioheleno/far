@@ -1,0 +1,18 @@
+pkgbase = bambustudio-appimage
+	pkgdesc = PC software for Bambu Lab and other 3D printers
+	pkgver = 2.8.4.57
+	pkgrel = 1
+	url = https://github.com/bambulab/BambuStudio
+	arch = x86_64
+	license = AGPL-3.0
+	depends = webkit2gtk-4.1
+	provides = bambustudio
+	conflicts = bambustudio
+	conflicts = bambustudio-git
+	conflicts = bambustudio-bin
+	options = !strip
+	options = !debug
+	source = BambuStudio-2.8.4.57.AppImage::https://github.com/bambulab/BambuStudio/releases/download/v02.08.04.57/BambuStudio_ubu24-v02.08.04.57-20260922164607.AppImage
+	sha256sums = 4870e355fa5e98e3a47bcd196b7ae16c2e9c15896a81ceaabe09ddbefa80d2f0
+
+pkgname = bambustudio-appimage

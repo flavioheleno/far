@@ -16,7 +16,7 @@ __pycache__/
 /packages/*/*.log
 
 # Local updater reports
-/.afr-updates/
+/.far-updates/
 
 # Work-environment mounts are not part of the project
 /.agents/

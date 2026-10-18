@@ -2,7 +2,7 @@
 
 ## Purpose and boundaries
 
-AFR is an AUR-style collection of Arch Linux recipes for local x86_64 builds.
+FAR is an AUR-style collection of Arch Linux recipes for local x86_64 builds.
 Every package has a directory at `packages/<pkgbase>/`. Keep package-specific
 files together; keep shared orchestration in `scripts/`.
 
