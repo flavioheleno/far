@@ -38,6 +38,7 @@ AGENTS.md              Instructions for future repository work
 | [tableplus](packages/tableplus/) | x86_64 supported | Vendor Alpha releases |
 | [saleae-logic2](packages/saleae-logic2/) | x86_64 supported | Vendor Logic 2 releases |
 | [tailwindcss-bin](packages/tailwindcss-bin/) | x86_64 supported | Stable standalone CLI |
+| [enpass-bin](packages/enpass-bin/) | x86_64 supported | Vendor Enpass releases |
 
 ## Local build and installation
 

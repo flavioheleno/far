@@ -1,0 +1,25 @@
+pkgbase = enpass-bin
+	pkgdesc = A multiplatform password manager
+	pkgver = 6.12.6.2258
+	pkgrel = 1
+	url = http://enpass.io/
+	install = enpass-bin.install
+	arch = x86_64
+	license = custom
+	depends = libxss
+	depends = lsof
+	depends = curl
+	depends = libxkbcommon-x11
+	depends = libxcb
+	depends = xcb-util-wm
+	depends = xcb-util-image
+	depends = xcb-util-keysyms
+	depends = xcb-util-renderutil
+	optdepends = libxdg-basedir: Open links in the default browser.
+	optdepends = libqtxdg: Open links in the default browser (Qt implementation)
+	provides = enpass
+	options = !strip
+	source = https://apt.enpass.io/pool/main/e/enpass/enpass_6.12.6.2258_amd64.deb
+	sha256sums = a98d2ff0d6ad392311022453598e59dcc2b9042cf9a001f0bf35e95aed5c3457
+
+pkgname = enpass-bin

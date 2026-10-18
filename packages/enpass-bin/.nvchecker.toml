@@ -1,0 +1,4 @@
+[enpass-bin]
+source = "aur"
+aur = "enpass-bin"
+use_last_modified = true
