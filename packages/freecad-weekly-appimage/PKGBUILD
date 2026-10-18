@@ -13,7 +13,10 @@ provides=('freecad')
 conflicts=('freecad')
 options=('!strip' '!debug')
 noextract=("freecad-${pkgver}.AppImage")
-source=("freecad-1.2.0_2026.10.14.AppImage::https://github.com/FreeCAD/FreeCAD/releases/download/weekly-2026.10.14/FreeCAD_weekly-2026.10.14-Linux-x86_64.AppImage"
+_upstream_tag='weekly-2026.10.14'
+_url='https://github.com/FreeCAD/FreeCAD/releases/download/weekly-2026.10.14/FreeCAD_weekly-2026.10.14-Linux-x86_64.AppImage'
+
+source=("freecad-${pkgver}.AppImage::${_url}"
   "freecad.sh"
   "org.freecad.FreeCAD.desktop.patch")
 

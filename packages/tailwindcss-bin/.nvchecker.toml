@@ -1,4 +1,27 @@
 [tailwindcss-bin]
-source = "aur"
-aur = "tailwindcss-bin"
-use_last_modified = true
+source = "upstream"
+mode = "github-assets"
+github = "tailwindlabs/tailwindcss"
+include_prereleases = false
+hosts = ["github.com", "raw.githubusercontent.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"]
+assignments = ["pkgver", "_url_license", "_url_aarch64", "_url_x86_64"]
+
+[[tailwindcss-bin.sources]]
+variable = "_url_license"
+array = "sha256sums"
+index = 0
+algorithm = "sha256"
+
+[[tailwindcss-bin.sources]]
+variable = "_url_aarch64"
+array = "sha256sums_aarch64"
+index = 0
+algorithm = "sha256"
+asset = "tailwindcss-linux-arm64"
+
+[[tailwindcss-bin.sources]]
+variable = "_url_x86_64"
+array = "sha256sums_x86_64"
+index = 0
+algorithm = "sha256"
+asset = "tailwindcss-linux-x64"

@@ -1,4 +1,27 @@
 [rtk-bin]
-source = "aur"
-aur = "rtk-bin"
-use_last_modified = true
+source = "upstream"
+mode = "github-assets"
+github = "rtk-ai/rtk"
+include_prereleases = false
+hosts = ["github.com", "raw.githubusercontent.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"]
+assignments = ["pkgver", "_url_license", "_url_x86_64", "_url_aarch64"]
+
+[[rtk-bin.sources]]
+variable = "_url_license"
+array = "sha256sums"
+index = 0
+algorithm = "sha256"
+
+[[rtk-bin.sources]]
+variable = "_url_x86_64"
+array = "sha256sums_x86_64"
+index = 0
+algorithm = "sha256"
+asset = "rtk-x86_64-unknown-linux-musl.tar.gz"
+
+[[rtk-bin.sources]]
+variable = "_url_aarch64"
+array = "sha256sums_aarch64"
+index = 0
+algorithm = "sha256"
+asset = "rtk-aarch64-unknown-linux-gnu.tar.gz"

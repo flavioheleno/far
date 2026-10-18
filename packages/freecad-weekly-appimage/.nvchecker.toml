@@ -1,4 +1,13 @@
 [freecad-weekly-appimage]
-source = "aur"
-aur = "freecad-weekly-appimage"
-use_last_modified = true
+source = "upstream"
+mode = "freecad-weekly"
+github = "FreeCAD/FreeCAD"
+include_prereleases = true
+hosts = ["github.com", "raw.githubusercontent.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"]
+assignments = ["pkgver", "_upstream_tag", "_url"]
+
+[[freecad-weekly-appimage.sources]]
+variable = "_url"
+array = "sha256sums"
+index = 0
+algorithm = "sha256"

@@ -118,6 +118,9 @@ An optional `GH_TOKEN` raises the GitHub API rate limit; it is not passed to
 `makepkg`. Release discovery follows up to 1,000 release entries, failing visibly
 instead of silently truncating a larger history.
 
+RTK, Tailwind CSS, and FreeCAD weekly now use the direct upstream interface.
+The remaining imported packages currently use the AUR source below.
+
 For AUR sources, the updater imports a pinned Git snapshot with its recipe,
 patches, launchers, install hooks, and signing keys. It preserves the maintainer's
 source checksums and signature checks. `.aur.json` records the current revision

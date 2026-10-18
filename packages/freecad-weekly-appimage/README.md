@@ -4,7 +4,7 @@ Arch recipe imported from [AUR](https://aur.archlinux.org/packages/freecad-weekl
 
 ## Package policy
 
-Tracks the AUR-maintained FreeCAD weekly AppImage, including the complete dated version, FUSE 2 dependency, launcher, and desktop patch. FAR adds explicit failure handling for the prepare-directory change.
+Tracks the upstream FreeCAD weekly AppImage, including the complete dated version, FUSE 2 dependency, launcher, and desktop patch. FAR adds explicit failure handling for the prepare-directory change.
 
 The directory and package base retain AUR's naming. The full declared architecture list is retained, including x86_64. Read `PKGBUILD` and `.SRCINFO` for current runtime, build, and optional dependencies.
 
@@ -20,8 +20,8 @@ Or enter this directory and run `makepkg -si`; makepkg builds locally and pacman
 
 ## Maintenance
 
-`.aur.json` records the current AUR revision and the SHA-256 hashes of the maintained recipe/support files. `.SRCINFO` is regenerated locally. Scheduled updates propose AUR changes, including packaging changes at the same version, as a PR. Upstream source checksums and signature verification are retained and checked by makepkg on your machine. GitHub does not download all vendor payloads or build this package.
+FAR tracks upstream GitHub releases directly; AUR is credited only for the initial recipe. `.nvchecker.toml` declares the release source, exact assets, HTTPS hosts, and checksum mappings. Scheduled jobs propose version, source URL, checksum, and generated `.SRCINFO` changes. Recipe customizations and supporting files stay under FAR ownership.
 
-`far.patch` records FAR's local changes and is reapplied to every new snapshot. A conflict stops the update for manual review.
+Weekly tags are ordered by their complete date. New builds read the base version from `version.json` at that tag and retain the date in `pkgver`. Missing or ambiguous Linux x86_64 assets stop the update.
 
-AUR updates depend on the AUR maintainer publishing a new recipe. Manual/runtime verification belongs on the local machine; a passing metadata check does not establish a successful build or launch.
+Downloads are temporary and discarded; no packages are built or uploaded. Review upstream packaging compatibility and test locally.

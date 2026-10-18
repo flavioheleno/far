@@ -20,6 +20,8 @@ Or enter this directory and run `makepkg -si`; makepkg builds locally and pacman
 
 ## Maintenance
 
-`.aur.json` records the current AUR revision and the SHA-256 hashes of the maintained recipe/support files. `.SRCINFO` is regenerated locally. Scheduled updates propose AUR changes, including packaging changes at the same version, as a PR. Upstream source checksums and signature verification are retained and checked by makepkg on your machine. GitHub does not download all vendor payloads or build this package.
+FAR tracks upstream GitHub releases directly; AUR is credited only for the initial recipe. `.nvchecker.toml` declares the release source, exact assets, HTTPS hosts, and checksum mappings. Scheduled jobs propose version, source URL, checksum, and generated `.SRCINFO` changes. Recipe customizations and supporting files stay under FAR ownership.
 
-AUR updates depend on the AUR maintainer publishing a new recipe. Manual/runtime verification belongs on the local machine; a passing metadata check does not establish a successful build or launch.
+Every declared architecture and the release-specific license are downloaded and hashed before proposing an update. Drafts and prereleases are excluded.
+
+Downloads are temporary and discarded; no packages are built or uploaded. Review upstream packaging compatibility and test locally.
