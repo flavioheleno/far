@@ -36,7 +36,7 @@ jobs:
     steps:
       - name: Install metadata tools
         run: pacman -Syu --noconfirm --needed python git shellcheck
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.base-sha }}
           persist-credentials: false
@@ -62,7 +62,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.base-sha }}
           persist-credentials: false
@@ -76,7 +76,7 @@ jobs:
       - name: Create optional repository-scoped App token
         if: inputs.app-id != ''
         id: app
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ inputs.app-id }}
           private-key: ${{ secrets.app-private-key }}
@@ -85,7 +85,7 @@ jobs:
           permission-contents: write
           permission-pull-requests: write
       - name: Open or refresh the package update PR
-        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ steps.app.outputs.token || github.token }}
           branch: updates/${{ inputs.package }}
@@ -94,6 +94,5 @@ jobs:
           commit-message: ${{ steps.patch.outputs.title }}
           body-path: ${{ steps.patch.outputs.body-path }}
           add-paths: |
-            packages/${{ inputs.package }}/PKGBUILD
-            packages/${{ inputs.package }}/.SRCINFO
+            packages/${{ inputs.package }}/
           delete-branch: true

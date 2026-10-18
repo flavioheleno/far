@@ -13,6 +13,10 @@ __pycache__/
 /packages/*/*.pkg.tar.*
 /packages/*/*.src.tar.*
 /packages/*/*.AppImage
+/packages/*/*.deb
+/packages/*/*.rpm
+/packages/*/*.tar.*
+/packages/*/squashfs-root/
 /packages/*/*.log
 
 # Local updater reports

@@ -55,10 +55,18 @@ def prepare(package: Path, output: Path) -> None:
         write_outputs(output, {"changed": "false"})
         print(f"{package.name}: up to date")
         return
-    changed = set(git("diff", "--name-only").decode().splitlines())
-    if changed != allowed_paths(package):
+    # Include new/deleted AUR support files in the patch, including new files.
+    git("add", "--all", "--", f"packages/{package.name}")
+    changed = set(git("diff", "--name-only", "--no-renames", "HEAD").decode().splitlines())
+    if report.get("source") == "aur":
+        allowed = {f"packages/{package.name}/{name}" for name in
+                   [*report["files"], *report["removed_files"], ".aur.json"]}
+        valid = changed <= allowed and f"packages/{package.name}/.aur.json" in changed
+    else:
+        valid = changed == allowed_paths(package)
+    if not valid or git("ls-files", "--others", "--exclude-standard").strip():
         raise MaintenanceError("Updater changed files outside the expected recipe and .SRCINFO")
-    patch = git("diff", "--no-ext-diff", "--no-textconv", "--", *sorted(changed))
+    patch = git("diff", "--cached", "--no-ext-diff", "--no-textconv", "--no-renames", "--", *sorted(changed))
     write_outputs(output, {"changed": "true", "patch": encode(patch),
                            "report": encode(json.dumps(report).encode())})
     print(f"{package.name}: prepared {report['old_version']} -> {report['version']}")
@@ -66,14 +74,21 @@ def prepare(package: Path, output: Path) -> None:
 
 def apply_payload(package: Path, patch: bytes, report: dict, body_path: Path) -> dict[str, str]:
     """Validate data and apply a patch, without evaluating the updated recipe."""
-    if (report.get("package") != package.name or report.get("status") != "updated"
+    aur = read_config(package)["source"] == "aur"
+    if aur:
+        from far_aur import publication_body, publication_paths
+        allowed = publication_paths(package, report)
+    elif (report.get("package") != package.name or report.get("status") != "updated"
             or not re.fullmatch(r"[a-f0-9]{64}", report.get("sha256", ""))
             or not re.fullmatch(r"[A-Za-z0-9._+-]+", report.get("asset", ""))
             or type(report.get("prerelease")) is not bool):
         raise MaintenanceError("Invalid update report")
-    current = assignment((package / "PKGBUILD").read_text(), "pkgver")
-    if current != report.get("old_version") or version_key(report["version"]) <= version_key(current):
-        raise MaintenanceError("Update report is stale or does not advance the version")
+    else:
+        allowed = allowed_paths(package)
+    if not aur:
+        current = assignment((package / "PKGBUILD").read_text(), "pkgver")
+        if current != report.get("old_version") or version_key(report["version"]) <= version_key(current):
+            raise MaintenanceError("Update report is stale or does not advance the version")
     if git("status", "--porcelain").strip():
         raise MaintenanceError("Apply updates to a clean checkout")
     stats = git("apply", "--numstat", "-", input=patch).decode().splitlines()
@@ -81,12 +96,20 @@ def apply_payload(package: Path, patch: bytes, report: dict, body_path: Path) ->
     if any(len(row) != 3 or not row[0].isdigit() or not row[1].isdigit() for row in fields):
         raise MaintenanceError("Only text recipe patches are accepted")
     paths = [row[2] for row in fields]
-    if set(paths) != allowed_paths(package) or len(paths) != 2:
+    valid = (set(paths) <= allowed and f"packages/{package.name}/.aur.json" in paths) if aur else (
+        set(paths) == allowed and len(paths) == 2)
+    if not valid:
         raise MaintenanceError("Patch must modify only the selected PKGBUILD and .SRCINFO")
     git("apply", "--check", "-", input=patch)
     git("apply", "-", input=patch)
-    if any(not (ROOT / path).is_file() or (ROOT / path).is_symlink() for path in paths):
+    if any((ROOT / path).is_symlink() or ((ROOT / path).exists() and not (ROOT / path).is_file()) for path in paths):
         raise MaintenanceError("Patched recipe files must remain regular files")
+    if not aur and any(not (ROOT / path).is_file() for path in paths):
+        raise MaintenanceError("Direct update patches must retain both recipe files")
+    if aur:
+        body_path.write_text(publication_body(package, report))
+        return {"title": f"chore({package.name}): update AUR recipe to {report['version']}",
+                "body-path": str(body_path)}
     recipe = (package / "PKGBUILD").read_text()
     tag = assignment(recipe, "_upstream_tag")
     expected_url = f"https://github.com/{read_config(package)['github']}/releases/tag/{tag}"

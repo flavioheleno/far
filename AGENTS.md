@@ -15,9 +15,12 @@ files together; keep shared orchestration in `scripts/`.
 - Keep `PKGBUILD` as the package definition and regenerate `.SRCINFO` with
   `makepkg --printsrcinfo` whenever package metadata changes. Never hand-edit it.
 - Preserve imported recipe attribution and record the exact upstream revision in
-  the package README. Review imported changes rather than blindly mirroring AUR.
+  the package README and current AUR snapshot in `.aur.json`. Review imported
+  changes rather than blindly merging AUR updates. Use AUR's exact pkgbase names.
 - Use version-specific source URLs, full upstream build identifiers, and SHA-256
   or stronger checksums. Never refresh an unchanged version's checksum silently.
+  Preserve documented signed-metadata and pinned-VCS checksum exceptions from
+  reviewed AUR recipes; do not add SKIP for ordinary binary payloads.
 - Each package documents its release channel, asset selection, dependencies,
   local build instructions, and known limitations.
 - Never build or install packages on the user's machine unless specifically
@@ -56,7 +59,12 @@ Before committing recipe or updater changes, run `./scripts/check-packages` and
 `python3 -m unittest discover -s tests -v`. Both are recipe-only checks. Run a
 preview of affected packages against saved metadata when available; do not use
 live upstream data in unit tests. `scripts/far.py` contains shared maintenance;
-each package's `update.py` implements `select_candidate` and `render_recipe`.
+direct GitHub packages' `update.py` implements `select_candidate` and
+`render_recipe`. AUR packages use `scripts/far_aur.py`, with local changes in
+`far.patch`. Regenerate their metadata and manifest with
+`./scripts/import-aur --refresh <pkgbase>` after reviewed manual changes, and keep
+the overlay consistent with those changes. Preserve supporting files, signed
+metadata checks, epochs, pkgrel, and multi-architecture definitions.
 Run `actionlint` after workflow changes. `scripts/workflow.py` is the boundary
 between unprivileged update preparation and PR publication: keep its patch path
 allowlist, payload bounds, and no-recipe-execution publication behavior intact.

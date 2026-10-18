@@ -44,6 +44,10 @@ def read_config(package: Path) -> dict:
     if set(data) != {package.name}:
         raise MaintenanceError(".nvchecker.toml must contain exactly its pkgbase table")
     config = data[package.name]
+    if config.get("source") == "aur":
+        if config.get("aur") != package.name:
+            raise MaintenanceError("AUR source name must match the package directory and pkgbase")
+        return config
     repository = config.get("github")
     if (config.get("source") != "github" or not isinstance(repository, str)
             or not REPOSITORY.fullmatch(repository)):
@@ -114,10 +118,15 @@ def generate_srcinfo(package: Path) -> str:
 
 
 def check_package(package: Path) -> None:
-    for name in ("PKGBUILD", ".SRCINFO", ".nvchecker.toml", "update.py", "README.md"):
+    config = read_config(package)
+    required = ["PKGBUILD", ".SRCINFO", ".nvchecker.toml", "README.md"]
+    required.append(".aur.json" if config["source"] == "aur" else "update.py")
+    for name in required:
         if not (package / name).is_file() or (package / name).is_symlink():
             raise MaintenanceError(f"Missing regular package file: {name}")
-    read_config(package)
+    if config["source"] == "aur":
+        from far_aur import verify_manifest
+        verify_manifest(package)
     for command in (
         ["bash", "-n", "PKGBUILD"],
         ["shellcheck", "--shell=bash", "--exclude=SC2034,SC2154", "PKGBUILD"],
@@ -129,8 +138,8 @@ def check_package(package: Path) -> None:
     if generated != (package / ".SRCINFO").read_text():
         raise MaintenanceError("Stale .SRCINFO; regenerate with makepkg --printsrcinfo")
     architecture = re.findall(r"^\s+arch = (.+)$", generated, re.M)
-    if not architecture or not set(architecture) <= {"x86_64", "any"}:
-        raise MaintenanceError("FAR currently targets x86_64 and architecture-independent packages")
+    if not set(architecture) & {"x86_64", "any"}:
+        raise MaintenanceError("Recipe must support x86_64 or be architecture-independent")
 
 
 def request_json(url: str) -> list:
@@ -188,6 +197,11 @@ def download_hash(candidate: dict) -> str:
 def update_one(package: Path, releases: list[dict] | None = None, *,
                apply: bool = False, verify_current: bool = False) -> dict:
     config = read_config(package)
+    if config["source"] == "aur":
+        if releases is not None or verify_current:
+            raise MaintenanceError("--releases-json and --verify-current apply only to direct GitHub sources")
+        from far_aur import update_aur
+        return update_aur(package, apply=apply)
     adapter = runpy.run_path(str(package / "update.py"))
     candidate = adapter["select_candidate"](
         github_releases(config["github"]) if releases is None else releases, config)
@@ -237,7 +251,7 @@ def check_main() -> int:
         try:
             check_package(package)
             print(f"{package.name}: recipe checks passed")
-        except (MaintenanceError, OSError, ValueError, subprocess.TimeoutExpired) as error:
+        except (MaintenanceError, OSError, ValueError, TypeError, KeyError, subprocess.TimeoutExpired) as error:
             failures += 1
             print(f"{package.name}: {error}", file=sys.stderr)
     return bool(failures)
@@ -263,7 +277,7 @@ def update_main() -> int:
     for package in packages:
         try:
             result = update_one(package, releases, apply=args.apply, verify_current=args.verify_current)
-        except (MaintenanceError, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
+        except (MaintenanceError, OSError, ValueError, TypeError, KeyError, subprocess.TimeoutExpired) as error:
             result = {"package": package.name, "status": "error", "message": str(error)}
         results.append(result)
         print(json.dumps(result))
@@ -275,6 +289,6 @@ def update_main() -> int:
 def cli(entry) -> None:
     try:
         raise SystemExit(entry())
-    except (MaintenanceError, OSError, ValueError) as error:
+    except (MaintenanceError, OSError, ValueError, TypeError, KeyError) as error:
         print(f"far: {error}", file=sys.stderr)
         raise SystemExit(1) from error

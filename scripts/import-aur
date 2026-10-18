@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""Import an AUR recipe snapshot into a new FAR package directory."""
+
+import argparse
+import json
+from pathlib import Path
+import shutil
+import tempfile
+
+from far import NAME, ROOT, MaintenanceError, check_package, cli
+from far_aur import fetch_snapshot, manifest, prepare_snapshot, read_manifest, snapshot
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("package")
+    parser.add_argument("--checkout", type=Path, help="read an existing AUR clone instead of fetching")
+    parser.add_argument("--overlay", type=Path, help="reviewed PKGBUILD patch to retain on future imports")
+    parser.add_argument("--notes", default="Release selection and dependencies follow the reviewed AUR recipe.")
+    parser.add_argument("--refresh", action="store_true", help="refresh generated metadata and the manifest after reviewed local edits")
+    args = parser.parse_args()
+    if not NAME.fullmatch(args.package):
+        raise MaintenanceError("Use the exact AUR package base")
+    destination = ROOT / "packages" / args.package
+    if args.refresh:
+        from far import generate_srcinfo
+        data = read_manifest(destination)
+        (destination / ".SRCINFO").write_text(generate_srcinfo(destination))
+        data = manifest(destination, data["revision"], list(data["files"]))
+        (destination / ".aur.json").write_text(json.dumps(data, indent=2) + "\n")
+        check_package(destination)
+        print(f"Refreshed {args.package}; include its reviewed far.patch changes in the same commit")
+        return 0
+    if destination.exists():
+        raise MaintenanceError("Package already exists; use the updater or review a manual change")
+    with tempfile.TemporaryDirectory(prefix="far-import-") as directory:
+        root = Path(directory)
+        revision, files = snapshot(args.checkout.resolve()) if args.checkout else fetch_snapshot(args.package, root / "upstream")
+        package = root / "snapshot" / args.package
+        package.mkdir(parents=True)
+        (package / ".nvchecker.toml").write_text(
+            f'[{args.package}]\nsource = "aur"\naur = "{args.package}"\nuse_last_modified = true\n')
+        (package / "README.md").write_text(
+            f"# {args.package}\n\n"
+            f"Arch recipe imported from [AUR](https://aur.archlinux.org/packages/{args.package}), "
+            f"initially at revision [`{revision}`](https://aur.archlinux.org/cgit/aur.git/commit/?h={args.package}&id={revision}). "
+            "Original maintainer and contributor headers are preserved.\n\n"
+            "## Package policy\n\n" + args.notes + "\n\n"
+            "The directory and package base retain AUR's naming. The full declared "
+            "architecture list is retained, including x86_64. Read `PKGBUILD` and "
+            "`.SRCINFO` for current runtime, build, and optional dependencies.\n\n"
+            "## Local use\n\nFrom the repository root:\n\n```sh\n"
+            f"rua builddir ./packages/{args.package}\n```\n\n"
+            "Or enter this directory and run `makepkg -si`; makepkg builds locally "
+            "and pacman installs the result. For separate steps, use `makepkg --syncdeps`, "
+            "inspect `makepkg --packagelist`, then `sudo pacman -U <package-file>`. "
+            "Review the recipe and update diff, and keep Arch updated first.\n\n"
+            "## Maintenance\n\n"
+            "`.aur.json` records the current AUR revision and the SHA-256 hashes of "
+            "the maintained recipe/support files. `.SRCINFO` is regenerated locally. "
+            "Scheduled updates propose AUR changes, including packaging changes at "
+            "the same version, as a PR. Upstream source checksums and signature "
+            "verification are retained and checked by makepkg on your machine. "
+            "GitHub does not download all vendor payloads or build this package.\n\n"
+            + ("`far.patch` records FAR's local changes and is reapplied to every new "
+               "snapshot. A conflict stops the update for manual review.\n\n" if args.overlay else "")
+            + "AUR updates depend on the AUR maintainer publishing a new recipe. "
+            "Manual/runtime verification belongs on the local machine; a passing "
+            "metadata check does not establish a successful build or launch.\n")
+        prepare_snapshot(package, revision, files, args.overlay.resolve() if args.overlay else None)
+        check_package(package)
+        shutil.copytree(package, destination)
+    print(f"Imported {args.package} at {revision}")
+    return 0
+
+
+if __name__ == "__main__":
+    cli(main)

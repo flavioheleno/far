@@ -83,15 +83,15 @@ with the committed file. These checks never call `build()`, `prepare()`, or
 `package()` and do not download package sources. Metadata generation does source
 the recipe as shell code: only evaluate recipes you trust.
 
-The updater defaults to a read-only preview. It reads the GitHub repository,
-release channel, and normalization rules from `.nvchecker.toml`, then invokes the
-package's `update.py` adapter. It downloads and hashes new assets before proposing
-changes. `--apply` updates `PKGBUILD` and regenerates `.SRCINFO`, rolling back those
-files if validation fails. Both commands accept one or more package bases;
+The updater defaults to a read-only preview. `.nvchecker.toml` selects either a
+direct GitHub source or an AUR snapshot source. `--apply` updates the managed
+recipe files and regenerates `.SRCINFO`, rolling back if validation fails.
+Both commands accept one or more package bases;
 omitting them selects all packages. Failures are reported independently and
 produce a nonzero exit code.
 
-Already-current recipes use GitHub's asset digest to detect upstream changes
+For direct GitHub sources, `update.py` selects the release and exact asset. New
+assets are downloaded and hashed. Already-current recipes use GitHub's asset digest to detect upstream changes
 without downloading the asset again. Use `--verify-current` to force a fresh
 download and hash; assets without a published digest are always downloaded.
 Changed content at the same version, ambiguous assets, and downgrades require
@@ -100,15 +100,28 @@ An optional `GH_TOKEN` raises the GitHub API rate limit; it is not passed to
 `makepkg`. Release discovery follows up to 1,000 release entries, failing visibly
 instead of silently truncating a larger history.
 
-For reproducible diagnosis, `--releases-json <file>` accepts a saved GitHub REST
-release-list response for one package. `--report <file>` writes a JSON summary,
-including failures. These options do not bypass asset integrity checks.
+For AUR sources, the updater imports a pinned Git snapshot with its recipe,
+patches, launchers, install hooks, and signing keys. It preserves the maintainer's
+source checksums and signature checks. `.aur.json` records the current revision
+and SHA-256 of every managed file. FAR's optional `far.patch` is reapplied before
+metadata generation; conflicts stop the update. AUR recipe/support-file changes
+at an unchanged software version also produce a reviewable PR. Vendor payloads
+are verified by makepkg locally, rather than downloaded by CI for these packages.
+This mode depends on the AUR maintainer publishing an updated recipe.
+
+For reproducible diagnosis of a direct GitHub package, `--releases-json <file>`
+accepts a saved GitHub REST release-list response. `--verify-current` likewise
+applies only to direct GitHub sources. `--report <file>` writes a JSON summary,
+including failures, for either mode. These options do not bypass integrity checks.
 
 The offline unit tests exercise beta selection, full build versions, historical
 asset names, ambiguous/missing assets, source integrity, downgrade protection,
 rollback, credential stripping, and repeat-run behavior. They build no packages
 and contact no external services. Workflow tests also verify patch path limits,
 payload bounds, report consistency, and publication without recipe execution.
+AUR tests exercise epochs, dated versions, supporting-file additions/removals,
+overlay conflicts, rollback, and local source-file integrity. They evaluate only
+metadata, and never run packaging functions.
 
 ## GitHub Actions
 
@@ -121,13 +134,16 @@ run. Recipe evaluation runs as an unprivileged user with no write credentials.
 `Update recipes` runs daily at **06:23 UTC** (03:23 in São Paulo) or on manual
 dispatch, optionally for one package. It discovers packages and invokes a reusable
 workflow independently for each. The preparation job checks the recipe and
-produces a bounded text patch for `PKGBUILD` and `.SRCINFO`. A separate publication
-job validates and applies only those two paths, then creates or refreshes
+produces a bounded text patch for the recipe and metadata. For AUR snapshots, it
+also includes the source manifest and changed supporting files. A separate publication
+job validates the package-specific path allowlist and applies the patch, then creates or refreshes
 `updates/<pkgbase>`. The publication job never evaluates the patched recipe. Data
 passes through job outputs; there are no artifact uploads or binary caches.
 
-Each PR includes the old/new versions, upstream release link, asset name, and
-verified SHA-256. Repeat runs reuse the same PR and do nothing when already
+Direct GitHub PRs include the old/new versions, upstream release link, asset name,
+and verified SHA-256. AUR PRs link the precise snapshot revision and preserve the
+local overlay; all changed recipe/support files are included. Repeat runs reuse
+the same PR and do nothing when already
 current. Merge manually after review. Source hashing and metadata checks are not
 a substitute for a successful local build and runtime test.
 
@@ -168,20 +184,50 @@ and [rua local-directory usage](https://github.com/vn971/rua#use).
 
 ## Adding a package
 
-1. Add `packages/<pkgbase>/PKGBUILD`, its supporting source files, and a README
-   recording provenance, release channel, asset selection, dependencies, and local
-   build/runtime instructions.
-2. Add `.nvchecker.toml` with a table matching `pkgbase`. The shared updater
-   currently supports GitHub releases with `use_max_release = true`, an explicit
-   `include_prereleases` boolean, and numeric dotted version normalization.
+Use the **exact AUR pkgbase**, retaining established `-bin`, `-dev`, `-weekly`, and
+`-appimage` names. Preserve a multi-architecture recipe when it supports x86_64;
+FAR's local target does not require stripping other architectures from metadata.
+
+For AUR-backed packages, start with a reviewed import:
+
+```sh
+./scripts/import-aur <pkgbase>
+```
+
+`--checkout <path>` reads an existing AUR Git clone. `--overlay <patch>` records
+local changes as `far.patch` and checks that they apply. The import creates
+provenance/usage notes, `.nvchecker.toml`, generated `.SRCINFO`, and `.aur.json`,
+and refuses to overwrite an existing package. Review and customize the package
+README and update the table above before committing.
+
+Keep local recipe changes in `far.patch`, relative to the pinned AUR snapshot.
+Use a normal unified diff with context. After reviewing manual changes to an
+existing recipe, regenerate its metadata and manifest with:
+
+```sh
+./scripts/import-aur --refresh <pkgbase>
+```
+
+This intentionally trusts your reviewed changes; update the overlay in the same
+commit so the next automated import preserves them. Adding/removing local source
+files also requires an explicit update to the manifest's file list.
+
+For direct GitHub updates such as Bambu Studio:
+
+1. Add `packages/<pkgbase>/PKGBUILD`, supporting files, and a README recording
+   provenance, channel, asset selection, dependencies, and local usage.
+2. Add `.nvchecker.toml` with a matching pkgbase table, `source = "github"`,
+   `use_max_release = true`, an explicit `include_prereleases` boolean, and
+   numeric dotted version normalization.
 3. Add `update.py` implementing `select_candidate(releases, config)` and
    `render_recipe(text, candidate)`. The current shared apply logic expects a
    single SHA-256 source and literal `pkgver`, `_upstream_tag`, and `_asset`
    assignments. Extend that interface with tests before adding other recipe
    shapes; do not force unrelated packages into the AppImage assumptions.
-4. Generate `.SRCINFO`, add offline selection/integrity tests, run the checks,
-   and update the package table above. Workflows discover package directories
-   automatically. Add and review nonofficial dependencies explicitly; the shared
-   automation does not recursively fetch or import AUR recipes.
+4. Generate `.SRCINFO` and add offline selection/integrity tests.
+
+Run all checks and update the package table before committing. Workflows discover
+package directories automatically. Add and review nonofficial dependencies
+explicitly; automation does not recursively import or build AUR dependencies.
 
 See [AGENTS.md](AGENTS.md) for the maintenance conventions.

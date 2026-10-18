@@ -1,6 +1,7 @@
 """Exercise the text-only boundary between update preparation and publication."""
 
 import base64
+import json
 from pathlib import Path
 import runpy
 import shutil
@@ -14,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import far
 import workflow
+import far_aur
+from test_aur import sources
 from test_updates import CONFIG, DIGEST, release
 
 
@@ -105,6 +108,39 @@ class PublicationTests(unittest.TestCase):
                 patch.object(workflow, "update_one", return_value={"status": "up-to-date"}):
             workflow.prepare(self.package, output)
         self.assertEqual(output.read_text(), "changed=false\n")
+
+
+@unittest.skipUnless(shutil.which("makepkg") and shutil.which("shellcheck"), "requires Arch metadata tools")
+class AurPublicationTests(unittest.TestCase):
+    def test_new_support_files_survive_preparation_and_token_free_publication(self):
+        with tempfile.TemporaryDirectory(prefix="far-handoff-tests-") as directory:
+            root = Path(directory)
+            prepare_root = root / "prepare"
+            package = prepare_root / "packages" / "fixture"
+            package.mkdir(parents=True)
+            (package / "README.md").write_text("Fixture docs\n")
+            (package / ".nvchecker.toml").write_text('[fixture]\nsource="aur"\naur="fixture"\n')
+            far_aur.prepare_snapshot(package, "1" * 40, sources(), None)
+            publish_root = root / "publish"
+            shutil.copytree(prepare_root, publish_root)
+            for checkout in (prepare_root, publish_root):
+                subprocess.run(["git", "init", "-q"], cwd=checkout, check=True)
+                subprocess.run(["git", "add", "."], cwd=checkout, check=True)
+                subprocess.run(["git", "-c", "user.name=FAR tests", "-c", "user.email=far@example.invalid",
+                                "commit", "-qm", "fixture"], cwd=checkout, check=True)
+            new_sources = sources("1.1") | {"new-support.txt": b"new support\n"}
+            output = root / "outputs"
+            with patch.object(workflow, "ROOT", prepare_root), \
+                    patch.object(far_aur, "fetch_snapshot", return_value=("2" * 40, new_sources)):
+                workflow.prepare(package, output)
+            values = dict(line.split("=", 1) for line in output.read_text().splitlines())
+            report = json.loads(workflow.decode(values["report"]))
+            with patch.object(workflow, "ROOT", publish_root), \
+                    patch.object(far, "generate_srcinfo", side_effect=AssertionError("recipe evaluated")):
+                workflow.apply_payload(publish_root / "packages" / "fixture",
+                                       workflow.decode(values["patch"]), report, root / "body.md")
+            self.assertEqual((publish_root / "packages/fixture/new-support.txt").read_bytes(), b"new support\n")
+            far_aur.verify_manifest(publish_root / "packages" / "fixture")
 
 
 if __name__ == "__main__":
