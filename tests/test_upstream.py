@@ -75,6 +75,17 @@ class IntegrityTests(unittest.TestCase):
                     upstream.open_upstream(url, CONFIG)
             self.assertEqual(request.call_count, calls)
 
+    def test_checksum_replacement_edits_only_the_selected_value(self):
+        old, keep = "a" * 64, "b" * 64
+        recipe = (f"sha256sums_x86_64=(\"{keep}\"  # launcher\n"
+                  f"    {old}\n    'SKIP')\nsha256sums=('{keep}')\n")
+        source = {"array": "sha256sums_x86_64", "index": 1}
+        rendered = upstream.replace_checksum(recipe, source, DIGEST)
+        self.assertEqual(rendered, recipe.replace(f"    {old}\n", f"    '{DIGEST}'\n"))
+        for index, value in ((2, DIGEST), (1, "f" * 128), (1, "not-a-checksum")):
+            with self.assertRaises(far.MaintenanceError):
+                upstream.replace_checksum(recipe, source | {"index": index}, value)
+
     def test_literal_rewrite_leaves_computed_assignments_untouched(self):
         recipe = RECIPE + "_url=$(printf %s \"$base\")\n"
         rendered = upstream.set_literal(recipe, "_url", "https://vendor.example/1.1.deb")

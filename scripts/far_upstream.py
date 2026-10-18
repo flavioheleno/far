@@ -102,10 +102,17 @@ def replace_checksum(recipe: str, source: dict, checksum: str) -> str:
     values = checksum_values(recipe, source["array"])
     if source["index"] >= len(values) or values[source["index"]] == "SKIP":
         raise MaintenanceError("Remote payloads must have a real checksum slot")
-    values[source["index"]] = checksum
-    rendered = "(" + "\n            ".join(f"'{value}'" for value in values) + ")"
-    return re.sub(rf"^{re.escape(source['array'])}=\(.*?\)",
-                  lambda _: source["array"] + "=" + rendered, recipe, count=1, flags=re.M | re.S)
+    if not re.fullmatch(rf"[a-f0-9]{{{len(values[source['index']])}}}", checksum):
+        raise MaintenanceError("Invalid replacement checksum")
+    # Edit only the selected value so comments, quoting, and layout stay reviewable.
+    array = re.search(rf"^{re.escape(source['array'])}=\((.*?)\)", recipe, re.M | re.S)
+    tokens = [token for token in re.finditer(r"#[^\n]*|'[^']*'|\"[^\"]*\"|[^\s'\"#]+", array[1])
+              if not token[0].startswith("#")]
+    if len(tokens) != len(values) or tokens[source["index"]][0].strip("'\"") != values[source["index"]]:
+        raise MaintenanceError(f"Unsupported {source['array']} layout")
+    token = tokens[source["index"]]
+    start, end = array.start(1) + token.start(), array.start(1) + token.end()
+    return recipe[:start] + f"'{checksum}'" + recipe[end:]
 
 
 def set_literal(recipe: str, name: str, value: str) -> str:
