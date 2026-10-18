@@ -1,0 +1,49 @@
+# Maintainer: Flavio Heleno <flaviohbatista@gmail.com>
+pkgname=extrudo-appimage
+pkgver=0.7.0
+pkgrel=1
+pkgdesc='Open-source parametric CAD with sketches, features, and a timeline'
+arch=('x86_64')
+url='https://github.com/zoltanf/extrudo'
+license=('GPL-3.0-or-later')
+depends=('alsa-lib' 'fuse2' 'gtk3' 'libdrm' 'libxkbcommon' 'nss')
+makedepends=('7zip')
+optdepends=('xdg-utils: Open external links in the default browser')
+provides=('extrudo')
+conflicts=('extrudo' 'extrudo-bin')
+options=('!strip' '!debug')
+
+_upstream_tag='v0.7.0'
+_asset='extrudo-0.7.0-linux-x86_64.AppImage'
+source=("extrudo-${pkgver}.AppImage::${url}/releases/download/${_upstream_tag}/${_asset}")
+sha256sums=('1b661cfcbfe92c16bf9ab5c109a1fe8c7e9a59e122c71d1b2e4ba724689b7f9d')
+
+prepare() {
+  # Read desktop icons without running the upstream AppImage.
+  7z x -y -oextrudo-resources "extrudo-${pkgver}.AppImage" \
+    'usr/share/icons/hicolor/*/apps/extrudo.png' > /dev/null
+}
+
+package() {
+  install -Dm755 "extrudo-${pkgver}.AppImage" \
+    "$pkgdir/usr/lib/extrudo/extrudo.AppImage"
+  install -dm755 "$pkgdir/usr/bin"
+  ln -s ../lib/extrudo/extrudo.AppImage "$pkgdir/usr/bin/extrudo"
+
+  for icon in extrudo-resources/usr/share/icons/hicolor/*/apps/extrudo.png; do
+    install -Dm644 "$icon" "$pkgdir/${icon#extrudo-resources/}"
+  done
+
+  install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/extrudo.desktop" <<'EOF'
+[Desktop Entry]
+Name=Extrudo
+Comment=Parametric CAD for 3D printing
+Exec=extrudo %U
+Icon=extrudo
+Terminal=false
+Type=Application
+Categories=Graphics;Engineering;
+MimeType=application/x-extrudo;
+StartupWMClass=Extrudo
+EOF
+}

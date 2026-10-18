@@ -42,6 +42,7 @@ AGENTS.md              Instructions for future repository work
 | [freecad-weekly-appimage](packages/freecad-weekly-appimage/) | x86_64 supported | Weekly FreeCAD builds |
 | [fritzing](packages/fritzing/) | x86_64 supported | AUR-selected source revisions |
 | [sublime-text-dev](packages/sublime-text-dev/) | x86_64 supported | Sublime Text development builds |
+| [extrudo-appimage](packages/extrudo-appimage/) | x86_64 | Stable releases |
 
 ## Local build and installation
 

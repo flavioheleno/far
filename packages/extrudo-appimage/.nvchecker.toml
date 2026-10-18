@@ -1,0 +1,9 @@
+[extrudo-appimage]
+source = "github"
+github = "zoltanf/extrudo"
+use_max_release = true
+include_prereleases = false
+prefix = "v"
+from_pattern = '^(\d+)\.(\d+)\.(\d+)$'
+to_pattern = '\1.\2.\3'
+sort_version_key = "vercmp"

@@ -1,0 +1,24 @@
+pkgbase = extrudo-appimage
+	pkgdesc = Open-source parametric CAD with sketches, features, and a timeline
+	pkgver = 0.7.0
+	pkgrel = 1
+	url = https://github.com/zoltanf/extrudo
+	arch = x86_64
+	license = GPL-3.0-or-later
+	makedepends = 7zip
+	depends = alsa-lib
+	depends = fuse2
+	depends = gtk3
+	depends = libdrm
+	depends = libxkbcommon
+	depends = nss
+	optdepends = xdg-utils: Open external links in the default browser
+	provides = extrudo
+	conflicts = extrudo
+	conflicts = extrudo-bin
+	options = !strip
+	options = !debug
+	source = extrudo-0.7.0.AppImage::https://github.com/zoltanf/extrudo/releases/download/v0.7.0/extrudo-0.7.0-linux-x86_64.AppImage
+	sha256sums = 1b661cfcbfe92c16bf9ab5c109a1fe8c7e9a59e122c71d1b2e4ba724689b7f9d
+
+pkgname = extrudo-appimage
