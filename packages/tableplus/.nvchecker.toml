@@ -5,7 +5,9 @@ hosts = ["deb.tableplus.com"]
 assignments = ["pkgver", "_url_x86_64", "_url_aarch64"]
 package = "tableplus"
 base_url = "https://deb.tableplus.com/debian/"
-release_url = "https://deb.tableplus.com/debian/"
+release_url = "https://deb.tableplus.com/debian/dists/tableplus/Release"
+# The fetched key must match PKGBUILD validpgpkeys.
+signing_key_url = "https://deb.tableplus.com/apt.tableplus.com.gpg.key"
 
 [[tableplus.sources]]
 variable = "_url_x86_64"
@@ -13,6 +15,7 @@ array = "sha256sums_x86_64"
 index = 0
 algorithm = "sha256"
 index_url = "https://deb.tableplus.com/debian/dists/tableplus/main/binary-amd64/Packages"
+release_path = "main/binary-amd64/Packages"
 architecture = "amd64"
 
 [[tableplus.sources]]
@@ -21,4 +24,5 @@ array = "sha256sums_aarch64"
 index = 0
 algorithm = "sha256"
 index_url = "https://deb.tableplus.com/debian/dists/tableplus/main/binary-arm64/Packages"
+release_path = "main/binary-arm64/Packages"
 architecture = "arm64"

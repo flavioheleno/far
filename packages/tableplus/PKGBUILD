@@ -22,6 +22,9 @@ sha256sums=('76f924b1ebad5309ccf0dd7f3fe3d1b57ff3088b208a603900b0e240fdb5debb'
             '83620b08e325418947f0007ecca7b981a988bfdac3f466db165f9262d1c0e5f4')
 sha256sums_x86_64=('792a5be354cbeb4fc27859641077ec604d0604da222d0b9c92d099bbb0078004')
 sha256sums_aarch64=('4228f3e1b7d404d8ca7ba57ce2a9ef37cd9e4b959d41ece28e78cda5794f3cbd')
+# FAR's updater verifies the vendor APT Release signature with this key; makepkg
+# checks the .deb against the checksum taken from that signed metadata.
+validpgpkeys=('211438D2880D8D98E100B1412A17818B38772786') # TablePlus (Release key) <nick@tableplus.com>
 
 prepare() {
     tar -xf "${srcdir}/data.tar.zst"

@@ -5,7 +5,9 @@ hosts = ["apt.enpass.io"]
 assignments = ["pkgver", "_url"]
 package = "enpass"
 base_url = "https://apt.enpass.io/"
-release_url = "https://apt.enpass.io/"
+release_url = "https://apt.enpass.io/dists/stable/Release"
+# The fetched key must match PKGBUILD validpgpkeys.
+signing_key_url = "https://apt.enpass.io/keys/enpass-linux.key"
 
 [[enpass-bin.sources]]
 variable = "_url"
@@ -13,4 +15,5 @@ array = "sha256sums"
 index = 0
 algorithm = "sha256"
 index_url = "https://apt.enpass.io/dists/stable/main/binary-amd64/Packages"
+release_path = "main/binary-amd64/Packages"
 architecture = "amd64"

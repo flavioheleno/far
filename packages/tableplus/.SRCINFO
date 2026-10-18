@@ -11,6 +11,7 @@ pkgbase = tableplus
 	depends = gnome-keyring
 	source = LICENSE
 	source = tableplus.desktop
+	validpgpkeys = 211438D2880D8D98E100B1412A17818B38772786
 	sha256sums = 76f924b1ebad5309ccf0dd7f3fe3d1b57ff3088b208a603900b0e240fdb5debb
 	sha256sums = 83620b08e325418947f0007ecca7b981a988bfdac3f466db165f9262d1c0e5f4
 	source_x86_64 = tableplus_0.1.316_1.1_amd64.deb::https://deb.tableplus.com/debian/24/pool/main/t/tableplus/tableplus_0.1.316_amd64.deb

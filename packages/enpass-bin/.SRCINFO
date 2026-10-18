@@ -20,6 +20,7 @@ pkgbase = enpass-bin
 	provides = enpass
 	options = !strip
 	source = enpass-6.12.6.2258.deb::https://apt.enpass.io/pool/main/e/enpass/enpass_6.12.6.2258_amd64.deb
+	validpgpkeys = F433834B65BE665BCE974660877653760D0214BC
 	sha256sums = a98d2ff0d6ad392311022453598e59dcc2b9042cf9a001f0bf35e95aed5c3457
 
 pkgname = enpass-bin

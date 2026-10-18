@@ -33,16 +33,22 @@ and update diff, and keep Arch updated first.
 
 Tracks the vendor stable Debian index at
 `https://apt.enpass.io/dists/stable/main/binary-amd64/Packages`. The exact
-filename, version, size, and SHA-256 come from that HTTPS index. The payload is
+filename, version, size, and SHA-256 come from that signed index. The payload is
 independently downloaded and hashed before an update is proposed.
 
 FAR owns the recipe and supporting files. AUR is credited for the original
 import and is not polled. Scheduled update PRs change only the recipe and
 generated `.SRCINFO`.
 
-Repository metadata is fetched over HTTPS; this adapter does not currently
-authenticate the vendor APT signature. Published payload checksums and sizes
-must match a fresh download.
+Discovery fetches the vendor's published signing key into a disposable keyring
+and accepts it only if it matches the fingerprint pinned in the PKGBUILD's
+`validpgpkeys`; FAR stores no key files. It then verifies the detached
+`Release.gpg`, checks each `Packages` index against the signed Release SHA-256
+and size, and requires each payload to match its signed checksum and size.
+Enpass also co-signs with a retired key that FAR does not trust; that signature
+is ignored, but any bad, expired, or revoked signature fails. A key rotation
+requires a reviewed `validpgpkeys` change. makepkg itself verifies the `.deb`
+against the checksum taken from that signed metadata.
 
 Downloads are temporary, and no package is built or uploaded. Review the
 packaging diff and verify launch/integration locally before installing.

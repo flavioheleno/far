@@ -15,6 +15,9 @@ install='enpass-bin.install'
 _url='https://apt.enpass.io/pool/main/e/enpass/enpass_6.12.6.2258_amd64.deb'
 source=("enpass-${pkgver}.deb::${_url}")
 sha256sums=('a98d2ff0d6ad392311022453598e59dcc2b9042cf9a001f0bf35e95aed5c3457')
+# FAR's updater verifies the vendor APT Release signature with this key; makepkg
+# checks the .deb against the checksum taken from that signed metadata.
+validpgpkeys=('F433834B65BE665BCE974660877653760D0214BC') # Enpass Packaging Team (APT Repository Signing Key) <package@enpass.io>
 
 # Disable strip as otherwise the browser extension will not work
 options=('!strip')
