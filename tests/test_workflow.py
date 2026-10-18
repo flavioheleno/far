@@ -128,7 +128,8 @@ class AurPublicationTests(unittest.TestCase):
                 subprocess.run(["git", "add", "."], cwd=checkout, check=True)
                 subprocess.run(["git", "-c", "user.name=FAR tests", "-c", "user.email=far@example.invalid",
                                 "commit", "-qm", "fixture"], cwd=checkout, check=True)
-            new_sources = sources("1.1") | {"new-support.txt": b"new support\n"}
+            new_sources = sources("1.1") | {"new-support.txt": b"new support\n",
+                                             "keys/pgp/fixture.asc": b"\x00public signing key fixture\xff"}
             output = root / "outputs"
             with patch.object(workflow, "ROOT", prepare_root), \
                     patch.object(far_aur, "fetch_snapshot", return_value=("2" * 40, new_sources)):
@@ -140,6 +141,8 @@ class AurPublicationTests(unittest.TestCase):
                 workflow.apply_payload(publish_root / "packages" / "fixture",
                                        workflow.decode(values["patch"]), report, root / "body.md")
             self.assertEqual((publish_root / "packages/fixture/new-support.txt").read_bytes(), b"new support\n")
+            self.assertEqual((publish_root / "packages/fixture/keys/pgp/fixture.asc").read_bytes(),
+                             b"\x00public signing key fixture\xff")
             far_aur.verify_manifest(publish_root / "packages" / "fixture")
 
 

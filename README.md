@@ -148,6 +148,8 @@ also includes the source manifest and changed supporting files. A separate publi
 job validates the package-specific path allowlist and applies the patch, then creates or refreshes
 `updates/<pkgbase>`. The publication job never evaluates the patched recipe. Data
 passes through job outputs; there are no artifact uploads or binary caches.
+Small imported public signing keys can travel as bounded Git binary patches;
+executable binary payloads are excluded from that handoff.
 
 Direct GitHub PRs include the old/new versions, upstream release link, asset name,
 and verified SHA-256. AUR PRs link the precise snapshot revision and preserve the

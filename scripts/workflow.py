@@ -66,7 +66,7 @@ def prepare(package: Path, output: Path) -> None:
         valid = changed == allowed_paths(package)
     if not valid or git("ls-files", "--others", "--exclude-standard").strip():
         raise MaintenanceError("Updater changed files outside the expected recipe and .SRCINFO")
-    patch = git("diff", "--cached", "--no-ext-diff", "--no-textconv", "--no-renames", "--", *sorted(changed))
+    patch = git("diff", "--cached", "--binary", "--no-ext-diff", "--no-textconv", "--no-renames", "--", *sorted(changed))
     write_outputs(output, {"changed": "true", "patch": encode(patch),
                            "report": encode(json.dumps(report).encode())})
     print(f"{package.name}: prepared {report['old_version']} -> {report['version']}")
@@ -93,8 +93,14 @@ def apply_payload(package: Path, patch: bytes, report: dict, body_path: Path) ->
         raise MaintenanceError("Apply updates to a clean checkout")
     stats = git("apply", "--numstat", "-", input=patch).decode().splitlines()
     fields = [line.split("\t", 2) for line in stats]
-    if any(len(row) != 3 or not row[0].isdigit() or not row[1].isdigit() for row in fields):
-        raise MaintenanceError("Only text recipe patches are accepted")
+    for row in fields:
+        if len(row) != 3:
+            raise MaintenanceError("Invalid recipe patch statistics")
+        text = row[0].isdigit() and row[1].isdigit()
+        public_key = (aur and row[:2] == ["-", "-"] and re.fullmatch(
+            rf"packages/{re.escape(package.name)}/keys/pgp/[A-Za-z0-9._+-]+\.(?:asc|gpg)", row[2]))
+        if not text and not public_key:
+            raise MaintenanceError("Only recipe text and imported public signing keys are accepted")
     paths = [row[2] for row in fields]
     valid = (set(paths) <= allowed and f"packages/{package.name}/.aur.json" in paths) if aur else (
         set(paths) == allowed and len(paths) == 2)
