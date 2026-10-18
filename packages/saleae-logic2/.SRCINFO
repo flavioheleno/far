@@ -10,7 +10,7 @@ pkgbase = saleae-logic2
 	provides = saleae-logic-beta
 	conflicts = saleae-logic
 	conflicts = saleae-logic-beta
-	source = https://downloads2.saleae.com/logic2/Logic-2.4.48-linux-x64.AppImage
+	source = Logic-2.4.48-linux-x64.AppImage::https://downloads2.saleae.com/logic2/Logic-2.4.48-linux-x64.AppImage
 	sha256sums = dbc2ded63b48d7561d9e2e5c9f1e2bafdc7f5654ee714ad123c69df74863641b
 
 pkgname = saleae-logic2

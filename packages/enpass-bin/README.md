@@ -20,6 +20,10 @@ Or enter this directory and run `makepkg -si`; makepkg builds locally and pacman
 
 ## Maintenance
 
-`.aur.json` records the current AUR revision and the SHA-256 hashes of the maintained recipe/support files. `.SRCINFO` is regenerated locally. Scheduled updates propose AUR changes, including packaging changes at the same version, as a PR. Upstream source checksums and signature verification are retained and checked by makepkg on your machine. GitHub does not download all vendor payloads or build this package.
+Tracks the vendor stable Debian index at `https://apt.enpass.io/dists/stable/main/binary-amd64/Packages`. The exact filename, version, size, and SHA-256 come from that HTTPS index. The payload is independently downloaded and hashed before an update is proposed.
 
-AUR updates depend on the AUR maintainer publishing a new recipe. Manual/runtime verification belongs on the local machine; a passing metadata check does not establish a successful build or launch.
+FAR owns the recipe and supporting files. AUR is credited for the original import and is not polled. Scheduled update PRs change only the recipe and generated `.SRCINFO`.
+
+Repository metadata is fetched over HTTPS; these adapters do not currently authenticate the vendor APT signatures. Published payload checksums and sizes must match a fresh download.
+
+Downloads are temporary, and no package is built or uploaded. Review the packaging diff and verify launch/integration locally before installing.

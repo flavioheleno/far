@@ -35,7 +35,7 @@ AGENTS.md              Instructions for future repository work
 | [bambustudio-appimage](packages/bambustudio-appimage/) | x86_64 | Stable and beta |
 | [rtk-bin](packages/rtk-bin/) | x86_64 supported | Stable RTK releases |
 | [spotify](packages/spotify/) | x86_64 supported | Vendor testing channel |
-| [tableplus](packages/tableplus/) | x86_64 supported | Vendor Alpha releases |
+| [tableplus](packages/tableplus/) | x86_64 supported | Vendor Linux releases |
 | [saleae-logic2](packages/saleae-logic2/) | x86_64 supported | Vendor Logic 2 releases |
 | [tailwindcss-bin](packages/tailwindcss-bin/) | x86_64 supported | Stable standalone CLI |
 | [enpass-bin](packages/enpass-bin/) | x86_64 supported | Vendor Enpass releases |
@@ -118,8 +118,9 @@ An optional `GH_TOKEN` raises the GitHub API rate limit; it is not passed to
 `makepkg`. Release discovery follows up to 1,000 release entries, failing visibly
 instead of silently truncating a larger history.
 
-RTK, Tailwind CSS, and FreeCAD weekly now use the direct upstream interface.
-The remaining imported packages currently use the AUR source below.
+RTK, Tailwind CSS, FreeCAD weekly, Enpass, TablePlus, Saleae Logic 2, and
+Sublime Text development builds use the direct upstream interface. Spotify and
+Fritzing currently use the AUR source below.
 
 For AUR sources, the updater imports a pinned Git snapshot with its recipe,
 patches, launchers, install hooks, and signing keys. It preserves the maintainer's

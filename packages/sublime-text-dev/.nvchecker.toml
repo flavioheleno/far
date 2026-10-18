@@ -1,4 +1,20 @@
 [sublime-text-dev]
-source = "aur"
-aur = "sublime-text-dev"
-use_last_modified = true
+source = "upstream"
+mode = "sublime"
+hosts = ["www.sublimetext.com", "download.sublimetext.com"]
+assignments = ["pkgver", "_url_x86_64", "_url_aarch64"]
+release_url = "https://www.sublimetext.com/dev"
+
+[[sublime-text-dev.sources]]
+variable = "_url_x86_64"
+array = "sha512sums_x86_64"
+index = 0
+algorithm = "sha512"
+architecture = "x64"
+
+[[sublime-text-dev.sources]]
+variable = "_url_aarch64"
+array = "sha512sums_aarch64"
+index = 0
+algorithm = "sha512"
+architecture = "arm64"

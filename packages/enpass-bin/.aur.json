@@ -1,8 +1,0 @@
-{
-  "revision": "3e1f4f225be39db7e8ddfccd4c9f1755beee2630",
-  "files": {
-    ".SRCINFO": "636555ad14d2dc3fa83311f241b7950cc435519e0815e8e88cbc6294b12348b8",
-    "PKGBUILD": "6763547f494677edf9e0dc9e1b077dfeb5a37eedd58fcfd639f0412a7df82976",
-    "enpass-bin.install": "030c215c27b277e739862cfac20b63f958c947ab7ebab9d725a73efdede1e7f3"
-  }
-}

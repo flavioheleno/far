@@ -12,9 +12,12 @@ arch=('x86_64' 'aarch64')
 url='https://tableplus.com/'
 license=('custom')
 depends=('gtksourceview3' 'libgee' 'gnome-keyring')
+_url_x86_64='https://deb.tableplus.com/debian/24/pool/main/t/tableplus/tableplus_0.1.316_amd64.deb'
+_url_aarch64='https://deb.tableplus.com/debian/24-arm/pool/main/t/tableplus/tableplus_0.1.316_arm64.deb'
+
 source=('LICENSE' 'tableplus.desktop')
-source_x86_64=("tableplus_${pkgver}_${pkgrel}_amd64.deb::https://deb.tableplus.com/debian/24/pool/main/t/tableplus/tableplus_${pkgver}_amd64.deb")
-source_aarch64=("tableplus_${pkgver}_${pkgrel}_arm64.deb::https://deb.tableplus.com/debian/24-arm/pool/main/t/tableplus/tableplus_${pkgver}_arm64.deb")
+source_x86_64=("tableplus_${pkgver}_${pkgrel}_amd64.deb::${_url_x86_64}")
+source_aarch64=("tableplus_${pkgver}_${pkgrel}_arm64.deb::${_url_aarch64}")
 sha256sums=('76f924b1ebad5309ccf0dd7f3fe3d1b57ff3088b208a603900b0e240fdb5debb'
             '83620b08e325418947f0007ecca7b981a988bfdac3f466db165f9262d1c0e5f4')
 sha256sums_x86_64=('792a5be354cbeb4fc27859641077ec604d0604da222d0b9c92d099bbb0078004')

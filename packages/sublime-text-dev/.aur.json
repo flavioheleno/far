@@ -1,9 +1,0 @@
-{
-  "revision": "6e4ed7eb667785b5f04da71aa55f7821ea6d10e0",
-  "files": {
-    ".SRCINFO": "0d3c8ecf8a378f046d83067bb77d8e70939bad4d0c48ada2975bac5d0184a762",
-    "PKGBUILD": "d112588d569241134f9a4de3834d6d684a17e3179dd2e8ffc271b347191095e9",
-    "sublime-text-dev.install": "92b00b7eca741dc4df41f6be418a20183af2af9ac66a69eec0b5e62823ba0a3c",
-    "sublime-text-dev.sh": "f85b6daf64c8860ebde669cb8fcfe665156a11dd288fbf503ce4eedf21dddeb9"
-  }
-}

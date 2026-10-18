@@ -118,5 +118,73 @@ class GithubDiscoveryTests(unittest.TestCase):
         self.assertIn(f"/{tag}/version.json", fetch.call_args.args[0])
 
 
+class VendorDiscoveryTests(unittest.TestCase):
+    def config(self, name):
+        return far.read_config(Path(__file__).resolve().parents[1] / "packages" / name)
+
+    def index(self, package="enpass", architecture="amd64", version="6.12.7.2300", filename=None):
+        return (f"Package: {package}\nArchitecture: {architecture}\nVersion: {version}\n"
+                f"Filename: {filename or 'pool/main/e/enpass/enpass_' + version + '_' + architecture + '.deb'}\n"
+                f"Size: {len(PAYLOAD)}\nSHA256: {DIGEST}\nDescription: fixture\n continuation\n\n").encode()
+
+    def test_debian_selection_filters_package_and_architecture_and_uses_full_version(self):
+        config = self.config("enpass-bin")
+        data = (self.index(version="6.12.7.2200") + self.index() + self.index(package="unrelated", version="99.0")
+                + self.index(architecture="arm64", version="99.0"))
+        with patch.object(upstreams, "fetch", return_value=data):
+            selected = upstreams.debian(config)
+        upstream.validate_candidate(selected, config)
+        self.assertEqual(selected["version"], "6.12.7.2300")
+        self.assertEqual(selected["sources"][0]["digest"], DIGEST)
+
+    def test_debian_duplicate_versions_and_traversal_are_rejected(self):
+        config = self.config("enpass-bin")
+        for data in (self.index() * 2, self.index(filename="pool/../../payload.deb"),
+                     self.index().replace(b"SHA256:", b"Size: 42\nSHA256:")):
+            with patch.object(upstreams, "fetch", return_value=data):
+                with self.assertRaises(far.MaintenanceError):
+                    upstreams.debian(config)
+
+    def test_tableplus_retains_build_number_and_waits_for_both_architectures(self):
+        config = self.config("tableplus")
+        data = {entry["index_url"]: self.index(package="tableplus", architecture=entry["architecture"],
+                                             version="2.0.0-318") for entry in config["sources"]}
+        selected = upstreams.debian(config, indices=data)
+        upstream.validate_candidate(selected, config)
+        self.assertEqual(selected["version"], "2.0.0.318")
+        entry = config["sources"][1]
+        data[entry["index_url"]] = self.index(package="tableplus", architecture="arm64", version="2.0.0-317")
+        with self.assertRaisesRegex(far.MaintenanceError, "different versions"):
+            upstreams.debian(config, indices=data)
+
+    def test_sublime_uses_current_headline_and_both_architectures(self):
+        config = self.config("sublime-text-dev")
+        page = b'<p>Version: <b>Build 4216</b></p><h2>Build 4214</h2>'
+        with patch.object(upstreams, "fetch", return_value=page):
+            selected = upstreams.sublime(config)
+        upstream.validate_candidate(selected, config)
+        self.assertEqual(selected["version"], "4.4216")
+        self.assertTrue(all("4216" in item["url"] for item in selected["sources"]))
+
+    def test_saleae_uses_versioned_redirect_and_rejects_insider_or_foreign_downloads(self):
+        config = self.config("saleae-logic2")
+        class Response(io.BytesIO):
+            headers = {"Content-Length": "15"}
+            url = "https://downloads2.saleae.com/logic2/Logic-2.4.49-linux-x64.AppImage"
+            def geturl(self):
+                return self.url
+        with patch.object(upstreams, "open_upstream", return_value=Response()) as request:
+            selected = upstreams.saleae(config)
+        upstream.validate_candidate(selected, config)
+        self.assertEqual(selected["version"], "2.4.49")
+        self.assertEqual(request.call_args.kwargs["method"], "HEAD")
+        for url in (Response.url.replace("2.4.49", "2.4.49-insider"), "https://other.example/payload"):
+            response = Response()
+            response.url = url
+            with patch.object(upstreams, "open_upstream", return_value=response):
+                with self.assertRaises(far.MaintenanceError):
+                    upstreams.saleae(config)
+
+
 if __name__ == "__main__":
     unittest.main()

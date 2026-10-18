@@ -20,6 +20,10 @@ Or enter this directory and run `makepkg -si`; makepkg builds locally and pacman
 
 ## Maintenance
 
-`.aur.json` records the current AUR revision and the SHA-256 hashes of the maintained recipe/support files. `.SRCINFO` is regenerated locally. Scheduled updates propose AUR changes, including packaging changes at the same version, as a PR. Upstream source checksums and signature verification are retained and checked by makepkg on your machine. GitHub does not download all vendor payloads or build this package.
+Tracks the normal Linux x64 download on [Saleae downloads](https://www.saleae.com/downloads), resolving the first-party download API redirect with an HTTP HEAD request. The result must be a version-specific `downloads2.saleae.com/logic2/Logic-<version>-linux-x64.AppImage` URL. Insider builds are excluded by using the normal download endpoint.
 
-AUR updates depend on the AUR maintainer publishing a new recipe. Manual/runtime verification belongs on the local machine; a passing metadata check does not establish a successful build or launch.
+FAR owns the recipe and supporting files. AUR is credited for the original import and is not polled. Scheduled update PRs change only the recipe and generated `.SRCINFO`.
+
+The vendor download is hashed directly over HTTPS; the imported recipe does not provide a separate signature verification step.
+
+Downloads are temporary, and no package is built or uploaded. Review the packaging diff and verify launch/integration locally before installing.

@@ -1,4 +1,24 @@
 [tableplus]
-source = "aur"
-aur = "tableplus"
-use_last_modified = true
+source = "upstream"
+mode = "debian"
+hosts = ["deb.tableplus.com"]
+assignments = ["pkgver", "_url_x86_64", "_url_aarch64"]
+package = "tableplus"
+base_url = "https://deb.tableplus.com/debian/"
+release_url = "https://deb.tableplus.com/debian/"
+
+[[tableplus.sources]]
+variable = "_url_x86_64"
+array = "sha256sums_x86_64"
+index = 0
+algorithm = "sha256"
+index_url = "https://deb.tableplus.com/debian/dists/tableplus/main/binary-amd64/Packages"
+architecture = "amd64"
+
+[[tableplus.sources]]
+variable = "_url_aarch64"
+array = "sha256sums_aarch64"
+index = 0
+algorithm = "sha256"
+index_url = "https://deb.tableplus.com/debian/dists/tableplus/main/binary-arm64/Packages"
+architecture = "arm64"

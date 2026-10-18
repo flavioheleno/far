@@ -1,4 +1,13 @@
 [saleae-logic2]
-source = "aur"
-aur = "saleae-logic2"
-use_last_modified = true
+source = "upstream"
+mode = "saleae"
+hosts = ["logic2api.saleae.com", "downloads2.saleae.com", "www.saleae.com"]
+assignments = ["pkgver", "_url"]
+endpoint = "https://logic2api.saleae.com/download?os=linux&arch=x64"
+release_url = "https://www.saleae.com/downloads"
+
+[[saleae-logic2.sources]]
+variable = "_url"
+array = "sha256sums"
+index = 0
+algorithm = "sha256"

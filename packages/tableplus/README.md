@@ -4,7 +4,7 @@ Arch recipe imported from [AUR](https://aur.archlinux.org/packages/tableplus), i
 
 ## Package policy
 
-The vendor’s Linux Alpha Debian package is repackaged locally. FAR quotes build paths, removes the duplicate binary installation, and installs the launcher in `/usr/bin/tableplus` as a symlink to `/opt/tableplus/tableplus`, rather than placing package-managed files under `/usr/local`. The local packaging revision is `1.1`; the reviewed overlay must be revisited if AUR changes that packaging revision.
+The vendor’s Linux Debian package is repackaged locally. FAR quotes build paths, removes the duplicate binary installation, and installs the launcher in `/usr/bin/tableplus` as a symlink to `/opt/tableplus/tableplus`, rather than placing package-managed files under `/usr/local`. The current local packaging revision is `1.1`; upstream version updates reset it to `1`.
 
 The directory and package base retain AUR's naming. The full declared architecture list is retained, including x86_64. Read `PKGBUILD` and `.SRCINFO` for current runtime, build, and optional dependencies.
 
@@ -20,8 +20,10 @@ Or enter this directory and run `makepkg -si`; makepkg builds locally and pacman
 
 ## Maintenance
 
-`.aur.json` records the current AUR revision and the SHA-256 hashes of the maintained recipe/support files. `.SRCINFO` is regenerated locally. Scheduled updates propose AUR changes, including packaging changes at the same version, as a PR. Upstream source checksums and signature verification are retained and checked by makepkg on your machine. GitHub does not download all vendor payloads or build this package.
+Tracks the vendor-supported Linux APT repository documented at [TablePlus downloads](https://tableplus.com/download/linux), using its `tableplus/main` indices for amd64 and arm64. Both architectures must publish the same complete version. Debian build suffixes are retained as numeric package-version components (for example, `2.0.0-318` becomes `2.0.0.318`). The initial recipe still pins the reviewed Ubuntu 24 payload; the next upstream proposal can migrate to the current vendor repository. Review extraction layout and dependencies when merging that transition.
 
-`far.patch` records FAR's local changes and is reapplied to every new snapshot. A conflict stops the update for manual review.
+FAR owns the recipe and supporting files. AUR is credited for the original import and is not polled. Scheduled update PRs change only the recipe and generated `.SRCINFO`.
 
-AUR updates depend on the AUR maintainer publishing a new recipe. Manual/runtime verification belongs on the local machine; a passing metadata check does not establish a successful build or launch.
+Repository metadata is fetched over HTTPS; these adapters do not currently authenticate the vendor APT signatures. Published payload checksums and sizes must match a fresh download.
+
+Downloads are temporary, and no package is built or uploaded. Review the packaging diff and verify launch/integration locally before installing.
