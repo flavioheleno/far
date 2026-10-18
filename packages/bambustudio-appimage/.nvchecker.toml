@@ -1,9 +1,16 @@
 [bambustudio-appimage]
-source = "github"
+source = "upstream"
+mode = "github-assets"
 github = "bambulab/BambuStudio"
-use_max_release = true
 include_prereleases = true
-prefix = "v"
-from_pattern = '^0*(\d+)\.0*(\d+)\.0*(\d+)\.0*(\d+)$'
-to_pattern = '\1.\2.\3.\4'
-sort_version_key = "vercmp"
+# Four zero-padded components; other tag schemes (legacy, nightly) are ignored.
+tag_pattern = 'v(\d{2}\.\d{2}\.\d{2}\.\d{2})'
+hosts = ["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"]
+assignments = ["pkgver", "_url"]
+
+[[bambustudio-appimage.sources]]
+variable = "_url"
+array = "sha256sums"
+index = 0
+algorithm = "sha256"
+asset_pattern = 'BambuStudio_(?:ubu24|ubuntu-?24\.04)-{tag}-\d{14}\.AppImage'

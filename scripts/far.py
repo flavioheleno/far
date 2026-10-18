@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
 import re
-import runpy
 import subprocess
 import sys
 import time
@@ -18,7 +16,6 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 NAME = re.compile(r"[a-z0-9][a-z0-9@._+-]*")
-REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 
 
 class MaintenanceError(Exception):
@@ -44,32 +41,11 @@ def read_config(package: Path) -> dict:
     if set(data) != {package.name}:
         raise MaintenanceError(".nvchecker.toml must contain exactly its pkgbase table")
     config = data[package.name]
-    if config.get("source") == "upstream":
-        from far_upstream import validate_config
-        validate_config(config)
-        return config
-    repository = config.get("github")
-    if (config.get("source") != "github" or not isinstance(repository, str)
-            or not REPOSITORY.fullmatch(repository)):
-        raise MaintenanceError("Updater currently supports GitHub owner/repo release sources")
-    if config.get("use_max_release") is not True:
-        raise MaintenanceError("Set use_max_release = true to select releases by version")
-    if not isinstance(config.get("include_prereleases"), bool):
-        raise MaintenanceError("Set include_prereleases explicitly to true or false")
+    if config.get("source") != "upstream":
+        raise MaintenanceError('Set source = "upstream" with a discovery mode')
+    from far_upstream import validate_config
+    validate_config(config)
     return config
-
-
-def normalize_tag(tag: str, config: dict) -> str:
-    prefix = config.get("prefix", "")
-    version = tag.removeprefix(prefix)
-    pattern = config.get("from_pattern")
-    if pattern:
-        if not re.fullmatch(pattern, version):
-            raise MaintenanceError(f"Unrecognized upstream tag: {tag}")
-        version = re.sub(pattern, config["to_pattern"], version)
-    if not re.fullmatch(r"\d+(?:\.\d+)*", version):
-        raise MaintenanceError(f"Expected a numeric dotted version, got {version!r}")
-    return version
 
 
 def version_key(version: str) -> tuple[int, ...]:
@@ -104,13 +80,6 @@ def set_assignment(text: str, name: str, value: str) -> str:
     return literal_pattern(name).sub(lambda _: f"{name}='{value}'", text, count=1)
 
 
-def source_hash(text: str) -> str:
-    matches = re.findall(r"^sha256sums=\('([a-f0-9]{64})'\)$", text, re.M)
-    if len(matches) != 1:
-        raise MaintenanceError("Expected one literal SHA-256 checksum")
-    return matches[0]
-
-
 def generate_srcinfo(package: Path) -> str:
     # Recipes are executable shell. Do not pass automation credentials to makepkg.
     env = {key: value for key, value in os.environ.items()
@@ -127,11 +96,8 @@ def generate_srcinfo(package: Path) -> str:
 
 
 def check_package(package: Path) -> None:
-    config = read_config(package)
-    required = ["PKGBUILD", ".SRCINFO", ".nvchecker.toml", "README.md"]
-    if config["source"] == "github":
-        required.append("update.py")
-    for name in required:
+    read_config(package)
+    for name in ("PKGBUILD", ".SRCINFO", ".nvchecker.toml", "README.md"):
         if not (package / name).is_file() or (package / name).is_symlink():
             raise MaintenanceError(f"Missing regular package file: {name}")
     for command in (
@@ -182,71 +148,11 @@ def github_releases(repository: str) -> list[dict]:
     raise MaintenanceError("Release pagination exceeds 1,000 entries; review the discovery policy")
 
 
-def download_hash(candidate: dict) -> str:
-    digest = hashlib.sha256()
-    total = 0
-    # Public asset downloads deliberately carry no GitHub token across redirects.
-    request = Request(candidate["url"], headers={"User-Agent": "far-recipe-updater"})
-    with urlopen(request, timeout=60) as response:
-        while block := response.read(1024 * 1024):
-            total += len(block)
-            if total > candidate["size"]:
-                raise MaintenanceError("Downloaded asset exceeds its declared size")
-            digest.update(block)
-    if total != candidate["size"]:
-        raise MaintenanceError("Downloaded asset size differs from release metadata")
-    actual = digest.hexdigest()
-    if candidate["sha256"] is not None and actual != candidate["sha256"]:
-        raise MaintenanceError("Downloaded SHA-256 differs from GitHub's asset digest")
-    return actual
-
-
 def update_one(package: Path, releases: list[dict] | None = None, *,
                apply: bool = False, verify_current: bool = False) -> dict:
-    config = read_config(package)
-    if config["source"] == "upstream":
-        if releases is not None:
-            raise MaintenanceError("--releases-json applies only to the legacy GitHub AppImage adapters")
-        from far_upstream import update_upstream
-        return update_upstream(package, config, apply=apply, verify_current=verify_current)
-    adapter = runpy.run_path(str(package / "update.py"))
-    candidate = adapter["select_candidate"](
-        github_releases(config["github"]) if releases is None else releases, config)
-    path = package / "PKGBUILD"
-    original = path.read_text()
-    current = assignment(original, "pkgver")
-    comparison = (version_key(candidate["version"]) > version_key(current)) - (
-        version_key(candidate["version"]) < version_key(current))
-    if comparison < 0:
-        raise MaintenanceError(f"Refusing downgrade: {current} -> {candidate['version']}")
-    old_hash = source_hash(original)
-    if comparison == 0:
-        if (assignment(original, "_upstream_tag") != candidate["tag"]
-                or assignment(original, "_asset") != candidate["asset"]
-                or candidate["sha256"] not in (None, old_hash)):
-            raise MaintenanceError("Upstream asset changed at an unchanged version; review manually")
-        if verify_current or candidate["sha256"] is None:
-            if download_hash(candidate) != old_hash:
-                raise MaintenanceError("Current source no longer matches the committed checksum")
-        return {"package": package.name, "status": "up-to-date", "version": current}
-    candidate["sha256"] = download_hash(candidate)
-    updated = adapter["render_recipe"](original, candidate)
-    result = {"package": package.name, "status": "updated" if apply else "available",
-              "old_version": current, "version": candidate["version"],
-              "release_url": candidate["release_url"], "asset": candidate["asset"],
-              "sha256": candidate["sha256"], "prerelease": candidate["prerelease"]}
-    if apply:
-        srcinfo_path = package / ".SRCINFO"
-        old_srcinfo = srcinfo_path.read_bytes()
-        try:
-            path.write_text(updated)
-            srcinfo_path.write_text(generate_srcinfo(package))
-            check_package(package)
-        except BaseException:
-            path.write_text(original)
-            srcinfo_path.write_bytes(old_srcinfo)
-            raise
-    return result
+    from far_upstream import update_upstream
+    return update_upstream(package, read_config(package), apply=apply,
+                           verify_current=verify_current, releases=releases)
 
 
 def check_main() -> int:

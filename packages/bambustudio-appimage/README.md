@@ -14,8 +14,8 @@ dated 2026-09-25. Contributor attribution is retained in `PKGBUILD`.
 
 FAR retains the package name, runtime dependency (`webkit2gtk-4.1`), provided
 `bambustudio` name, conflicts, and desktop integration from that recipe. It uses
-the complete upstream build number, separates the upstream tag and asset name,
-and extracts desktop resources in `prepare()` for rua compatibility. Missing
+the complete upstream build number, pins the exact asset URL in `_url`, and
+extracts desktop resources in `prepare()` for rua compatibility. Missing
 icons or desktop files fail the local packaging operation.
 
 The AppImage is installed as `/usr/bin/bambustudio`. Its desktop entry and icon
@@ -49,10 +49,11 @@ before installing newly updated recipes. Read the recipe and diff before use.
 
 ## Updates and checks
 
-FAR's own `.nvchecker.toml` declares the GitHub source, beta policy, and version
-normalization. `update.py` resolves the exact timestamped Ubuntu 24 asset,
-accepts the known `ubu24`, `ubuntu24.04`, and `ubuntu-24.04` naming forms, and
-rejects missing or ambiguous assets. It selects the highest complete version
+FAR's own `.nvchecker.toml` uses the shared `github-assets` mode. Its
+`tag_pattern` accepts only four-part zero-padded tags, and its `asset_pattern`
+resolves the exact timestamped Ubuntu 24 asset, accepting the known `ubu24`,
+`ubuntu24.04`, and `ubuntu-24.04` naming forms. Missing or ambiguous assets stop
+the update. It selects the highest complete version
 among eligible published releases, independently of API listing order. Changing
 `pkgver` alone cannot update this recipe correctly.
 

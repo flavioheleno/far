@@ -13,9 +13,8 @@ provides=('bambustudio')
 conflicts=('bambustudio' 'bambustudio-git' 'bambustudio-bin')
 options=('!strip' '!debug')
 
-_upstream_tag='v02.08.04.57'
-_asset='BambuStudio_ubu24-v02.08.04.57-20260922164607.AppImage'
-source=("BambuStudio-${pkgver}.AppImage::${url}/releases/download/${_upstream_tag}/${_asset}")
+_url='https://github.com/bambulab/BambuStudio/releases/download/v02.08.04.57/BambuStudio_ubu24-v02.08.04.57-20260922164607.AppImage'
+source=("BambuStudio-${pkgver}.AppImage::${_url}")
 sha256sums=('4870e355fa5e98e3a47bcd196b7ae16c2e9c15896a81ceaabe09ddbefa80d2f0')
 
 prepare() {

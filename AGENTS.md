@@ -67,8 +67,7 @@ Before committing recipe or updater changes, run `./scripts/check-packages` and
 `python3 -m unittest discover -s tests -v`. Both are recipe-only checks. Run a
 preview of affected packages against saved metadata when available; do not use
 live upstream data in unit tests. `scripts/far.py` contains shared maintenance;
-the Bambu Studio/Extrudo `source = "github"` packages' `update.py` implements
-`select_candidate` and `render_recipe`. Other packages use `scripts/upstreams.py` discovery and
+every package uses `scripts/upstreams.py` discovery and
 `scripts/far_upstream.py` for source mapping, bounded downloads, rollback, and
 literal publication checks. Configuration declares first-party hosts, version/URL
 assignments, and exact checksum slots. Preserve every declared architecture and

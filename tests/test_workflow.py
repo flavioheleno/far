@@ -1,9 +1,9 @@
 """Exercise the text-only boundary between update preparation and publication."""
 
 import base64
+import copy
 import json
 from pathlib import Path
-import runpy
 import shutil
 import subprocess
 import sys
@@ -17,7 +17,7 @@ import far
 import far_upstream
 import upstreams
 import workflow
-from test_updates import CONFIG, DIGEST, release
+from test_upstream import DIGEST, bambu
 
 
 class PayloadTests(unittest.TestCase):
@@ -56,18 +56,18 @@ class PublicationTests(unittest.TestCase):
     def update_patch(self):
         recipe = self.package / "PKGBUILD"
         original = recipe.read_text()
-        adapter = runpy.run_path(str(self.package / "update.py"))
-        candidate = adapter["select_candidate"]([release()], CONFIG)
-        recipe.write_text(adapter["render_recipe"](original, candidate))
+        candidate = upstreams.github_assets(far.read_config(self.package), releases=[bambu()])
+        for source in candidate["sources"]:
+            source["checksum"] = DIGEST
+        recipe.write_text(far_upstream.render_recipe(original, candidate))
         metadata = self.package / ".SRCINFO"
         metadata.write_text(metadata.read_text().replace("2.8.4.57", "2.8.5.1"))
         payload = self.run_git("diff", "--no-ext-diff", "--no-textconv")
         # Restore the fixture without reset/checkout commands or changing history.
         for file in (recipe, metadata):
             file.write_bytes(self.run_git("show", "HEAD:" + file.relative_to(self.root).as_posix()))
-        report = {"package": self.package.name, "status": "updated", "old_version": "2.8.4.57",
-                  "version": candidate["version"], "sha256": DIGEST,
-                  "asset": candidate["asset"], "release_url": candidate["release_url"], "prerelease": True}
+        report = candidate | {"package": self.package.name, "source": "upstream", "status": "updated",
+                              "old_version": "2.8.4.57"}
         return payload, report
 
     def test_checked_patch_round_trips_without_executing_the_recipe(self):
@@ -99,8 +99,10 @@ class PublicationTests(unittest.TestCase):
 
     def test_mismatched_checksum_report_cannot_be_published(self):
         payload, report = self.update_patch()
+        report = copy.deepcopy(report)
+        report["sources"][0]["checksum"] = "0" * 64
         with self.assertRaisesRegex(far.MaintenanceError, "does not match"):
-            workflow.apply_payload(self.package, payload, report | {"sha256": "0" * 64}, self.root / "body.md")
+            workflow.apply_payload(self.package, payload, report, self.root / "body.md")
 
     def test_current_recipe_preparation_produces_no_patch(self):
         output = self.root / "outputs"

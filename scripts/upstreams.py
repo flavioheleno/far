@@ -32,14 +32,17 @@ def candidate(config: dict, version: str, release_url: str, sources: list[dict],
                             **{item["variable"]: item["url"] for item in ordered}}, "sources": ordered}
 
 
-def latest_release(config: dict, *, weekly=False) -> dict:
+DEFAULT_TAG = r"v?(\d+(?:\.\d+)+)"
+
+
+def latest_release(config: dict, *, weekly=False, releases=None) -> dict:
     eligible = []
-    for release in github_releases(config["github"]):
+    pattern = r"weekly-(\d{4}\.\d{2}\.\d{2})" if weekly else config.get("tag_pattern", DEFAULT_TAG)
+    for release in github_releases(config["github"]) if releases is None else releases:
         if release.get("draft") or (release.get("prerelease") and not config["include_prereleases"]):
             continue
-        tag = release["tag_name"]
-        pattern = r"weekly-(\d{4}\.\d{2}\.\d{2})" if weekly else r"v?(\d+(?:\.\d+)+)"
-        match = re.fullmatch(pattern, tag)
+        # Tags outside the configured scheme (legacy, nightly) are not releases of this package.
+        match = re.fullmatch(pattern, release["tag_name"])
         if match:
             if weekly:
                 datetime.strptime(match[1], "%Y.%m.%d")
@@ -49,12 +52,24 @@ def latest_release(config: dict, *, weekly=False) -> dict:
     return max(eligible, key=lambda item: item[0])[1]
 
 
-def asset_source(config: dict, release: dict, variable: str, name: str) -> dict:
-    assets = [item for item in release["assets"] if item["name"] == name]
+def release_version(config: dict, tag: str) -> str:
+    # Zero-padded upstream components (v02.08.04.57) become Arch versions (2.8.4.57).
+    return ".".join(str(int(part)) for part in re.fullmatch(config.get("tag_pattern", DEFAULT_TAG), tag)[1].split("."))
+
+
+def asset_source(config: dict, release: dict, variable: str, name: str | None = None, *, pattern: str | None = None) -> dict:
+    if pattern is not None:
+        tag = release["tag_name"]
+        expression = pattern.replace("{tag}", re.escape(tag)).replace("{version}", re.escape(release_version(config, tag)))
+        assets = [item for item in release["assets"] if re.fullmatch(expression, item["name"])]
+        label = pattern
+    else:
+        assets = [item for item in release["assets"] if item["name"] == name]
+        label = name
     if len(assets) != 1:
-        raise MaintenanceError(f"Expected exactly one {name} asset; found {len(assets)}")
+        raise MaintenanceError(f"{release['tag_name']}: expected exactly one {label} asset; found {len(assets)}")
     asset = assets[0]
-    url = f"https://github.com/{config['github']}/releases/download/{release['tag_name']}/{name}"
+    url = f"https://github.com/{config['github']}/releases/download/{release['tag_name']}/{asset['name']}"
     if asset.get("state") != "uploaded" or asset["browser_download_url"] != url:
         raise MaintenanceError("Unexpected GitHub asset state or URL")
     digest = asset.get("digest")
@@ -66,18 +81,19 @@ def asset_source(config: dict, release: dict, variable: str, name: str) -> dict:
     return source(config, variable, url, digest=digest.removeprefix("sha256:") if digest else None, size=size)
 
 
-def github_assets(config: dict) -> dict:
-    release = latest_release(config)
+def github_assets(config: dict, *, releases=None) -> dict:
+    release = latest_release(config, releases=releases)
     tag = release["tag_name"]
-    version = tag.removeprefix("v")
-    sources = [asset_source(config, release, item["variable"], item["asset"]) for item in config["sources"] if "asset" in item]
-    sources.append(source(config, "_url_license", f"https://github.com/{config['github']}/raw/{tag}/LICENSE"))
-    return candidate(config, version, f"https://github.com/{config['github']}/releases/tag/{tag}", sources,
-                     prerelease=release["prerelease"])
+    sources = [asset_source(config, release, item["variable"], item.get("asset"), pattern=item.get("asset_pattern"))
+               for item in config["sources"] if "asset" in item or "asset_pattern" in item]
+    if any(item["variable"] == "_url_license" for item in config["sources"]):
+        sources.append(source(config, "_url_license", f"https://github.com/{config['github']}/raw/{tag}/LICENSE"))
+    return candidate(config, release_version(config, tag), f"https://github.com/{config['github']}/releases/tag/{tag}",
+                     sources, prerelease=release["prerelease"])
 
 
-def freecad_weekly(config: dict, recipe: str) -> dict:
-    release = latest_release(config, weekly=True)
+def freecad_weekly(config: dict, recipe: str, *, releases=None) -> dict:
+    release = latest_release(config, weekly=True, releases=releases)
     tag = release["tag_name"]
     date = tag.removeprefix("weekly-")
     if tag == assignment(recipe, "_upstream_tag"):
@@ -301,11 +317,13 @@ def fritzing(config: dict, recipe: str) -> dict:
                      fields={"_gitrev": revision, "_partsrev": parts})
 
 
-def discover(package, config: dict, recipe: str) -> dict:
+def discover(package, config: dict, recipe: str, *, releases=None) -> dict:
+    if releases is not None and config["mode"] not in {"github-assets", "freecad-weekly"}:
+        raise MaintenanceError("--releases-json applies only to GitHub release modes")
     if config["mode"] == "github-assets":
-        return github_assets(config)
+        return github_assets(config, releases=releases)
     if config["mode"] == "freecad-weekly":
-        return freecad_weekly(config, recipe)
+        return freecad_weekly(config, recipe, releases=releases)
     if config["mode"] == "debian":
         return signed_debian(package, config) if config.get("signing_key") else debian(config)
     if config["mode"] == "saleae":

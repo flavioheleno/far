@@ -142,9 +142,8 @@ the recipe as shell code: only evaluate recipes you trust.
 The updater defaults to a preview that leaves recipes unchanged but still
 contacts upstream and verifies downloads when required. `.nvchecker.toml` is
 read by FAR's own Python tooling, despite its historical filename; running
-nvchecker is not part of this workflow. `source = "github"` selects the Bambu
-Studio/Extrudo adapter interface, and `source = "upstream"` selects a shared
-adapter. `--apply` writes the recipe and regenerates `.SRCINFO`, restoring both
+nvchecker is not part of this workflow. Every package uses `source = "upstream"`
+with a shared discovery `mode`. `--apply` writes the recipe and regenerates `.SRCINFO`, restoring both
 files if validation fails.
 
 The checker and updater accept one or more package bases; omitting them selects
@@ -153,27 +152,24 @@ code. With `--apply`, successful changes to other packages remain in place when
 one package fails. Review and commit applied changes with the package's docs;
 `--apply` neither creates a Git commit nor installs anything.
 
-The `source = "upstream"` adapter interface supports direct vendor discovery,
-multiple architectures, and SHA-256/SHA-512 source arrays. Configuration declares
-allowed HTTPS hosts, literal assignments, and exact checksum slots. Shared
-transport hashes downloads in memory with size limits; publication inspects
-literal recipe values without executing the recipe. These adapters use Arch's
-`vercmp`, including dated package versions. `--verify-current` also forces
-payload verification for this interface.
+The shared adapter interface supports direct vendor discovery, multiple
+architectures, and SHA-256/SHA-512 source arrays. Configuration declares allowed
+HTTPS hosts, literal assignments, and exact checksum slots. Shared transport
+hashes downloads in memory with size limits; publication inspects literal recipe
+values without executing the recipe. These adapters use Arch's `vercmp`,
+including dated package versions.
 
-For the two `source = "github"` packages, `update.py` selects the release and
-exact asset. New assets are downloaded and hashed. Already-current recipes use
-GitHub's asset digest to detect upstream changes without downloading the asset
-again. Use `--verify-current` to force a fresh download and hash; assets without
-a published digest are always downloaded.
+New payloads are downloaded and hashed. Already-current recipes use published
+digests (GitHub asset digests, APT index checksums) to detect upstream changes
+without downloading the payload again. Use `--verify-current` to force a fresh
+download and hash; sources without a published digest are always downloaded.
 Changed content at the same version, ambiguous assets, and downgrades require
 manual review. Temporary downloads are hashed as a stream and never saved.
 An optional `GH_TOKEN` raises the GitHub API rate limit; it is not passed to
 `makepkg`. Release discovery follows up to 1,000 release entries, failing visibly
 instead of silently truncating a larger history.
 
-All packages track first-party sources. Bambu Studio and Extrudo use their
-package-specific `update.py`; the others use `scripts/upstreams.py`:
+All packages track first-party sources through `scripts/upstreams.py`:
 
 | Package | First-party discovery source |
 | --- | --- |
@@ -219,8 +215,9 @@ stop the update. A version bump can precede a public release: review upstream's
 release status, source patches, and parts compatibility before merging. GitHub
 Releases, tags, and website announcements are not used for Fritzing discovery.
 
-For reproducible diagnosis of the Bambu Studio or Extrudo adapter,
-`--releases-json <file>` accepts a saved GitHub REST release-list response.
+For reproducible diagnosis of a GitHub release mode (`github-assets`,
+`freecad-weekly`), `--releases-json <file>` accepts a saved GitHub REST
+release-list response for exactly one package; other modes reject it.
 `--verify-current` also checks shared-adapter payloads; it does not fetch
 Fritzing VCS source trees. `--report <file>` writes a JSON summary, including
 failures, for all adapters. These options do not bypass integrity checks.
@@ -336,7 +333,7 @@ For the shared upstream interface:
 4. Check metadata and run the offline tests before committing. Vendor signing-key
    rotations and changes to build patches/dependencies need explicit review.
 
-Existing shared modes are `github-assets` (RTK/Tailwind), `freecad-weekly`,
+Existing shared modes are `github-assets` (Bambu Studio/Extrudo/RTK/Tailwind), `freecad-weekly`,
 `debian` (Spotify/TablePlus/Enpass), `saleae`, and `fritzing`. Automated updates
 reset `pkgrel` to `1` on a new upstream version and preserve any `epoch`. For a
 packaging-only change, bump `pkgrel` manually and regenerate `.SRCINFO`. New
@@ -344,19 +341,13 @@ adapters must use versions compatible with publication's numeric dotted version
 format, optionally followed by an underscore and numeric dotted weekly date,
 or explicitly extend and test that interface.
 
-For direct GitHub updates such as Bambu Studio:
-
-1. Add `packages/<pkgbase>/PKGBUILD`, supporting files, and a README recording
-   provenance, channel, asset selection, dependencies, and local usage.
-2. Add `.nvchecker.toml` with a matching pkgbase table, `source = "github"`,
-   `use_max_release = true`, an explicit `include_prereleases` boolean, and
-   numeric dotted version normalization.
-3. Add `update.py` implementing `select_candidate(releases, config)` and
-   `render_recipe(text, candidate)`. The current shared apply logic expects a
-   single SHA-256 source and literal `pkgver`, `_upstream_tag`, and `_asset`
-   assignments. Extend that interface with tests before adding other recipe
-   shapes; do not force unrelated packages into the AppImage assumptions.
-4. Generate `.SRCINFO` and add offline selection/integrity tests.
+In `github-assets` mode, each payload source names its release asset with
+either an exact `asset` or an `asset_pattern`, a regular expression in which
+`{tag}` and `{version}` stand for the selected release; exactly one asset must
+match. An optional `tag_pattern` with one capture group restricts eligible tags
+and extracts the version, and zero-padded components are normalized (Bambu
+Studio's `v02.08.04.57` becomes `2.8.4.57`). A `_url_license` source, when
+declared, is resolved to the tagged `LICENSE` file.
 
 Run all checks and update both package tables before committing. Keep live
 version/checksum values in `PKGBUILD` and `.SRCINFO`; label historical examples

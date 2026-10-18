@@ -18,8 +18,8 @@ and GitHub's published asset digest:
 
 Automated update PRs track stable releases, select the exact Linux x86_64
 AppImage, verify its SHA-256, and update the pinned source and metadata. Beta
-releases are excluded. FAR's `.nvchecker.toml` declares this channel;
-`update.py` fails on missing or ambiguous assets. `PKGBUILD` and generated
+releases are excluded. FAR's `.nvchecker.toml` declares this channel in the
+shared `github-assets` mode; missing or ambiguous assets stop the update. `PKGBUILD` and generated
 `.SRCINFO` are authoritative for the current version, source URL, and checksum.
 
 The AppImage is installed under `/usr/lib/extrudo/` with `/usr/bin/extrudo` as a

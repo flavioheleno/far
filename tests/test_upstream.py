@@ -174,6 +174,94 @@ class GithubDiscoveryTests(unittest.TestCase):
         self.assertIn(f"/{tag}/version.json", fetch.call_args.args[0])
 
 
+def appimage_release(package, tag, name, *, beta=False):
+    repository = {"bambustudio-appimage": "bambulab/BambuStudio", "extrudo-appimage": "zoltanf/extrudo"}[package]
+    return {"tag_name": tag, "draft": False, "prerelease": beta,
+            "assets": [{"name": name, "state": "uploaded", "size": len(PAYLOAD), "digest": f"sha256:{DIGEST}",
+                        "browser_download_url": f"https://github.com/{repository}/releases/download/{tag}/{name}"}]}
+
+
+def bambu(tag="v02.08.05.01", *, beta=True, variant="ubu24", stamp="20261017123456"):
+    return appimage_release("bambustudio-appimage", tag, f"BambuStudio_{variant}-{tag}-{stamp}.AppImage", beta=beta)
+
+
+def extrudo(version="0.8.0", *, beta=False):
+    return appimage_release("extrudo-appimage", f"v{version}", f"extrudo-{version}-linux-x86_64.AppImage", beta=beta)
+
+
+class AppImageDiscoveryTests(unittest.TestCase):
+    def setUp(self):
+        root = Path(__file__).resolve().parents[1] / "packages"
+        self.bambu = far.read_config(root / "bambustudio-appimage")
+        self.extrudo = far.read_config(root / "extrudo-appimage")
+
+    def select(self, config, releases):
+        selected = upstreams.github_assets(config, releases=releases)
+        upstream.validate_candidate(selected, config)
+        return selected
+
+    def test_bambu_selects_highest_zero_padded_version_and_tracks_betas(self):
+        draft = bambu("v99.00.00.01")
+        draft["draft"] = True
+        releases = [draft, bambu("v02.08.03.99"), bambu(), bambu("v02.08.04.99"), bambu("v02.08.02.61", beta=False)]
+        self.assertEqual(self.select(self.bambu, releases)["version"], "2.8.5.1")
+        stable = self.select(self.bambu | {"include_prereleases": False}, releases)
+        self.assertEqual((stable["version"], stable["prerelease"]), ("2.8.2.61", False))
+
+    def test_bambu_ignores_other_tag_schemes(self):
+        self.assertEqual(self.select(self.bambu, [bambu("v2.9.0.1"), bambu("nightly-02.09.00.01"), bambu()])["version"],
+                         "2.8.5.1")
+
+    def test_bambu_accepts_known_ubuntu24_asset_names_only(self):
+        for variant in ("ubu24", "ubuntu24.04", "ubuntu-24.04"):
+            with self.subTest(variant=variant):
+                self.assertIn(variant, self.select(self.bambu, [bambu(variant=variant)])["assignments"]["_url"])
+        for name in ("BambuStudio_ubu22-v02.08.05.01-20261017123456.AppImage",
+                     "BambuStudio_ubu24-v02.08.05.01-20261017123456-aarch64.AppImage",
+                     "BambuStudio_ubu24-v02.08.04.57-20261017123456.AppImage"):
+            data = bambu()
+            data["assets"][0]["name"] = name
+            with self.subTest(name=name), self.assertRaisesRegex(far.MaintenanceError, "found 0"):
+                self.select(self.bambu, [data, bambu("v02.08.04.57")])
+
+    def test_bambu_duplicate_assets_and_bad_metadata_require_review(self):
+        data = bambu()
+        data["assets"].extend(bambu(stamp="20261017123457")["assets"])
+        with self.assertRaisesRegex(far.MaintenanceError, "found 2"):
+            self.select(self.bambu, [data])
+        for field, value in (("browser_download_url", "https://example.org/asset.AppImage"), ("state", "starter"),
+                             ("size", 0), ("size", True), ("digest", "sha256:bad")):
+            data = bambu()
+            data["assets"][0][field] = value
+            with self.subTest(field=field), self.assertRaises(far.MaintenanceError):
+                self.select(self.bambu, [data])
+
+    def test_extrudo_tracks_stable_linux_x86_64_only(self):
+        selected = self.select(self.extrudo, [extrudo("1.0.0", beta=True), extrudo("0.7.0"), extrudo()])
+        self.assertEqual(selected["version"], "0.8.0")
+        self.assertTrue(selected["assignments"]["_url"].endswith("/v0.8.0/extrudo-0.8.0-linux-x86_64.AppImage"))
+        for assets in ([], extrudo()["assets"] * 2,
+                       [extrudo()["assets"][0] | {"name": "extrudo-0.8.0-linux-aarch64.AppImage"}]):
+            with self.subTest(assets=assets), self.assertRaises(far.MaintenanceError):
+                self.select(self.extrudo, [extrudo() | {"assets": assets}])
+
+    def test_committed_recipes_match_their_current_release(self):
+        root = Path(__file__).resolve().parents[1] / "packages"
+        for config, data in ((self.bambu, bambu("v02.08.04.57", stamp="20260922164607")), (self.extrudo, extrudo("0.7.0"))):
+            package = root / ("bambustudio-appimage" if config is self.bambu else "extrudo-appimage")
+            recipe = (package / "PKGBUILD").read_text()
+            data["assets"][0]["digest"] = "sha256:" + upstream.checksum_values(recipe, "sha256sums")[0]
+            with self.subTest(package=package.name), \
+                    patch.object(upstream, "hash_source", side_effect=AssertionError("should not download")):
+                result = far.update_one(package, [data])
+            self.assertEqual(result["status"], "up-to-date")
+
+    def test_saved_releases_apply_only_to_github_modes(self):
+        root = Path(__file__).resolve().parents[1] / "packages"
+        with self.assertRaisesRegex(far.MaintenanceError, "GitHub release modes"):
+            far.update_one(root / "enpass-bin", [bambu()])
+
+
 class VendorDiscoveryTests(unittest.TestCase):
     def config(self, name):
         return far.read_config(Path(__file__).resolve().parents[1] / "packages" / name)
@@ -386,7 +474,7 @@ class UpstreamUpdateTests(unittest.TestCase):
 
     def test_applied_update_resets_pkgrel_and_is_idempotent(self):
         data = self.selected()
-        with patch.object(upstreams, "discover", side_effect=lambda *args: copy.deepcopy(data)), \
+        with patch.object(upstreams, "discover", side_effect=lambda *args, **kwargs: copy.deepcopy(data)), \
                 patch.object(upstream, "hash_source", return_value=DIGEST) as download, \
                 patch.object(upstream, "generate_srcinfo", return_value="generated metadata\n"), \
                 patch.object(upstream, "check_package"):
@@ -419,7 +507,19 @@ class UpstreamUpdateTests(unittest.TestCase):
     def test_no_configuration_tracks_aur(self):
         root = Path(__file__).resolve().parents[1]
         for package in far.package_paths(root=root):
-            self.assertIn(far.read_config(package)["source"], {"github", "upstream"})
+            self.assertEqual(far.read_config(package)["source"], "upstream")
+
+    def test_package_discovery_rejects_unknown_and_traversal_names(self):
+        for name in ("../bambustudio-appimage", "missing", "bambustudio-appimage/PKGBUILD"):
+            with self.assertRaises(far.MaintenanceError):
+                far.package_paths([name])
+
+    def test_makepkg_receives_no_automation_credentials(self):
+        completed = subprocess.CompletedProcess([], 0, stdout=f"pkgbase = {self.package.name}\n", stderr="")
+        with patch.dict(far.os.environ, {"GH_TOKEN": "fixture", "GITHUB_TOKEN": "fixture", "PRIVATE_KEY": "fixture"}), \
+                patch.object(far.subprocess, "run", return_value=completed) as run:
+            far.generate_srcinfo(self.package)
+        self.assertFalse({"GH_TOKEN", "GITHUB_TOKEN", "PRIVATE_KEY"} & run.call_args.kwargs["env"].keys())
 
     def test_subprocess_failure_in_one_package_does_not_hide_others(self):
         failure = subprocess.CalledProcessError(1, ["vercmp"])

@@ -33,6 +33,22 @@ def validate_config(config: dict) -> None:
             raise MaintenanceError("Declare an explicit upstream GitHub repository")
     if config["mode"] in {"github-assets", "freecad-weekly"} and not isinstance(config.get("include_prereleases"), bool):
         raise MaintenanceError("Set include_prereleases explicitly to true or false")
+    if "tag_pattern" in config:
+        try:
+            groups = re.compile(config["tag_pattern"]).groups
+        except (re.error, TypeError) as error:
+            raise MaintenanceError("Invalid tag_pattern") from error
+        if config["mode"] != "github-assets" or groups != 1:
+            raise MaintenanceError("tag_pattern applies to github-assets and needs one version group")
+    for source in config.get("sources", []):
+        named = [key for key in ("asset", "asset_pattern") if key in source]
+        if config["mode"] == "github-assets" and source.get("variable") != "_url_license" and len(named) != 1:
+            raise MaintenanceError("Each GitHub asset source needs exactly one asset or asset_pattern")
+        if "asset_pattern" in source:
+            try:
+                re.compile(source["asset_pattern"].replace("{tag}", "").replace("{version}", ""))
+            except (re.error, AttributeError) as error:
+                raise MaintenanceError("Invalid asset_pattern") from error
     if config["mode"] == "fritzing" and not re.fullmatch(r"[A-Za-z0-9._/-]+", config.get("branch", "")):
         raise MaintenanceError("Declare the upstream source-version branch")
     identities = []
@@ -186,11 +202,11 @@ def render_recipe(recipe: str, candidate: dict) -> str:
     return recipe
 
 
-def update_upstream(package: Path, config: dict, *, apply: bool, verify_current: bool) -> dict:
+def update_upstream(package: Path, config: dict, *, apply: bool, verify_current: bool, releases=None) -> dict:
     from upstreams import discover
     path = package / "PKGBUILD"
     original = path.read_text()
-    candidate = discover(package, config, original)
+    candidate = discover(package, config, original, releases=releases)
     validate_candidate(candidate, config)
     current = assignment(original, "pkgver")
     comparison = compare_versions(candidate["version"], current)
@@ -241,6 +257,7 @@ def publication_body(package: Path, recipe: str, report: dict, config: dict) -> 
                     "A version bump may precede a public release. "
                     "The parts pin is retained: review its compatibility and the source patches locally.")
     return (f"Update `{package.name}` from **{report['old_version']}** to **{report['version']}**.\n\n"
-            f"Upstream: {report['release_url']}\n\n" + "\n".join(rows) + "\n\n"
+            f"Upstream: {report['release_url']}\n"
+            f"Release channel: {'prerelease' if report['prerelease'] else 'stable'}\n\n" + "\n".join(rows) + "\n\n"
             f"Sources were resolved directly from upstream. {verification} "
             "No package was built or uploaded. Review packaging compatibility and test locally before installation.\n")

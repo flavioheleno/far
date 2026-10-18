@@ -1,9 +1,15 @@
 [extrudo-appimage]
-source = "github"
+source = "upstream"
+mode = "github-assets"
 github = "zoltanf/extrudo"
-use_max_release = true
 include_prereleases = false
-prefix = "v"
-from_pattern = '^(\d+)\.(\d+)\.(\d+)$'
-to_pattern = '\1.\2.\3'
-sort_version_key = "vercmp"
+tag_pattern = 'v(\d+\.\d+\.\d+)'
+hosts = ["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"]
+assignments = ["pkgver", "_url"]
+
+[[extrudo-appimage.sources]]
+variable = "_url"
+array = "sha256sums"
+index = 0
+algorithm = "sha256"
+asset_pattern = 'extrudo-{version}-linux-x86_64\.AppImage'

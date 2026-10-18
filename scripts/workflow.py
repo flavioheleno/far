@@ -5,11 +5,11 @@ import base64
 import json
 import os
 from pathlib import Path
-import re
 import subprocess
 
 from far import (MaintenanceError, ROOT, assignment, check_package, cli,
-                 package_paths, read_config, source_hash, update_one, version_key)
+                 package_paths, read_config, update_one)
+from far_upstream import publication_body, publication_version_key, validate_candidate
 
 LIMIT = 64 * 1024
 
@@ -67,27 +67,13 @@ def prepare(package: Path, output: Path) -> None:
 def apply_payload(package: Path, patch: bytes, report: dict, body_path: Path) -> dict[str, str]:
     """Validate data and apply a patch, without evaluating the updated recipe."""
     config = read_config(package)
-    upstream = config["source"] == "upstream"
-    if upstream:
-        from far_upstream import validate_candidate
-        if report.get("package") != package.name or report.get("status") != "updated" or report.get("source") != "upstream":
-            raise MaintenanceError("Invalid upstream update report")
-        validate_candidate(report, config)
-        allowed = allowed_paths(package)
-    elif (report.get("package") != package.name or report.get("status") != "updated"
-            or not re.fullmatch(r"[a-f0-9]{64}", report.get("sha256", ""))
-            or not re.fullmatch(r"[A-Za-z0-9._+-]+", report.get("asset", ""))
-            or type(report.get("prerelease")) is not bool):
-        raise MaintenanceError("Invalid update report")
-    else:
-        allowed = allowed_paths(package)
+    if report.get("package") != package.name or report.get("status") != "updated" or report.get("source") != "upstream":
+        raise MaintenanceError("Invalid upstream update report")
+    validate_candidate(report, config)
+    allowed = allowed_paths(package)
     current = assignment((package / "PKGBUILD").read_text(), "pkgver")
-    if upstream:
-        from far_upstream import publication_version_key
-        advances = publication_version_key(report["version"]) > publication_version_key(current)
-    else:
-        advances = version_key(report["version"]) > version_key(current)
-    if current != report.get("old_version") or not advances:
+    if current != report.get("old_version") or not (
+            publication_version_key(report["version"]) > publication_version_key(current)):
         raise MaintenanceError("Update report is stale or does not advance the version")
     if git("status", "--porcelain").strip():
         raise MaintenanceError("Apply updates to a clean checkout")
@@ -109,25 +95,7 @@ def apply_payload(package: Path, patch: bytes, report: dict, body_path: Path) ->
     if any(not (ROOT / path).is_file() for path in paths):
         raise MaintenanceError("Direct update patches must retain both recipe files")
     recipe = (package / "PKGBUILD").read_text()
-    if upstream:
-        from far_upstream import publication_body
-        body_path.write_text(publication_body(package, recipe, report, config))
-        return {"title": f"chore({package.name}): update to {report['version']}",
-                "body-path": str(body_path)}
-    tag = assignment(recipe, "_upstream_tag")
-    expected_url = f"https://github.com/{read_config(package)['github']}/releases/tag/{tag}"
-    if (assignment(recipe, "pkgver") != report["version"]
-            or assignment(recipe, "_asset") != report["asset"]
-            or source_hash(recipe) != report["sha256"]
-            or report.get("release_url") != expected_url):
-        raise MaintenanceError("Patched recipe does not match the update report")
-    channel = "beta / prerelease" if report["prerelease"] else "stable"
-    body_path.write_text(
-        f"Update `{package.name}` from **{current}** to **{report['version']}**.\n\n"
-        f"- Upstream: {expected_url}\n- Release channel: {channel}\n"
-        f"- Asset: `{report['asset']}`\n- SHA-256: `{report['sha256']}`\n\n"
-        "The upstream download was hashed and recipe metadata was regenerated and checked. "
-        "No package was built or uploaded. Review the diff, merge, and build/install locally.\n")
+    body_path.write_text(publication_body(package, recipe, report, config))
     return {"title": f"chore({package.name}): update to {report['version']}",
             "body-path": str(body_path)}
 
