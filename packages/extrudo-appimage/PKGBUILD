@@ -1,7 +1,7 @@
 # Maintainer: Flavio Heleno <flaviohbatista@gmail.com>
 pkgname=extrudo-appimage
-pkgver=0.7.0
-pkgrel=1
+pkgver='0.8.0'
+pkgrel='1'
 pkgdesc='Open-source parametric CAD with sketches, features, and a timeline'
 arch=('x86_64')
 url='https://github.com/zoltanf/extrudo'
@@ -13,9 +13,9 @@ provides=('extrudo')
 conflicts=('extrudo' 'extrudo-bin')
 options=('!strip' '!debug')
 
-_url='https://github.com/zoltanf/extrudo/releases/download/v0.7.0/extrudo-0.7.0-linux-x86_64.AppImage'
+_url='https://github.com/zoltanf/extrudo/releases/download/v0.8.0/extrudo-0.8.0-linux-x86_64.AppImage'
 source=("extrudo-${pkgver}.AppImage::${_url}")
-sha256sums=('1b661cfcbfe92c16bf9ab5c109a1fe8c7e9a59e122c71d1b2e4ba724689b7f9d')
+sha256sums=('1015f91389a4a83ddbf554b926750f39f40c99bd1715286175462cd809dc6adf')
 
 prepare() {
   # Read desktop icons without running the upstream AppImage.
