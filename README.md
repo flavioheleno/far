@@ -227,7 +227,9 @@ failures, for all adapters. These options do not bypass integrity checks.
 The offline unit tests exercise beta selection, full build versions, historical
 asset names, ambiguous/missing assets, source integrity, downgrade protection,
 rollback, credential stripping, and repeat-run behavior. They build no packages
-and contact no external services. Workflow tests also verify patch path limits,
+and contact no external services. Current-recipe checks derive release fixtures
+from committed source URLs, so version bumps do not require fixture updates.
+Workflow tests also verify patch path limits,
 payload bounds, report consistency, and publication without recipe execution.
 Direct upstream tests cover multiple architectures, full Debian build versions,
 signed metadata verification, source allowlists, checksum slots, weekly dates,

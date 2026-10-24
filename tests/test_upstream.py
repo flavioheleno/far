@@ -247,9 +247,11 @@ class AppImageDiscoveryTests(unittest.TestCase):
 
     def test_committed_recipes_match_their_current_release(self):
         root = Path(__file__).resolve().parents[1] / "packages"
-        for config, data in ((self.bambu, bambu("v02.08.04.57", stamp="20260922164607")), (self.extrudo, extrudo("0.7.0"))):
-            package = root / ("bambustudio-appimage" if config is self.bambu else "extrudo-appimage")
+        for name in ("bambustudio-appimage", "extrudo-appimage"):
+            package = root / name
             recipe = (package / "PKGBUILD").read_text()
+            tag, asset = far.assignment(recipe, "_url").rsplit("/", 2)[-2:]
+            data = appimage_release(name, tag, asset)
             data["assets"][0]["digest"] = "sha256:" + upstream.checksum_values(recipe, "sha256sums")[0]
             with self.subTest(package=package.name), \
                     patch.object(upstream, "hash_source", side_effect=AssertionError("should not download")):
