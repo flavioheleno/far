@@ -155,8 +155,10 @@ one package fails. Review and commit applied changes with the package's docs;
 The shared adapter interface supports direct vendor discovery, multiple
 architectures, and SHA-256/SHA-512 source arrays. Configuration declares allowed
 HTTPS hosts, literal assignments, and exact checksum slots. Shared transport
-hashes downloads in memory with size limits; publication inspects literal recipe
-values without executing the recipe. These adapters use Arch's `vercmp`,
+validates the initial URL and every redirect target against that HTTPS/host policy
+before requesting them, then validates the final response URL. It hashes downloads
+in memory with size limits; publication inspects literal recipe values without
+executing the recipe. These adapters use Arch's `vercmp`,
 including dated package versions.
 
 New payloads are downloaded and hashed. Already-current recipes use published
