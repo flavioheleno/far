@@ -10,7 +10,7 @@ import subprocess
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from far import MaintenanceError, assignment, check_package, generate_srcinfo, replace_assignment, set_assignment
 
@@ -79,12 +79,26 @@ def validate_url(url: str, config: dict) -> str:
     return url
 
 
+class UpstreamRedirectHandler(HTTPRedirectHandler):
+    def __init__(self, config: dict):
+        self.config = config
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        try:
+            validate_url(newurl, self.config)
+        except BaseException:
+            fp.close()
+            raise
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def open_upstream(url: str, config: dict, *, method: str = "GET"):
     validate_url(url, config)
+    opener = build_opener(UpstreamRedirectHandler(config))
     # Retry transient failures like request_json(); client errors fail immediately.
     for attempt in range(3):
         try:
-            response = urlopen(Request(url, headers={"User-Agent": "far-recipe-updater"}, method=method), timeout=60)
+            response = opener.open(Request(url, headers={"User-Agent": "far-recipe-updater"}, method=method), timeout=60)
             try:
                 validate_url(response.geturl(), config)
             except BaseException:

@@ -3,6 +3,7 @@
 import hashlib
 import io
 import copy
+from email.message import Message
 from pathlib import Path
 import shutil
 import subprocess
@@ -10,6 +11,8 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from urllib.request import HTTPSHandler, ProxyHandler, build_opener
+from urllib.response import addinfourl
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import far
@@ -78,12 +81,12 @@ class IntegrityTests(unittest.TestCase):
         response.geturl = lambda: url
         def error(code):
             return HTTPError(url, code, "fixture", {}, None)
-        with patch.object(upstream, "urlopen", side_effect=[error(503), TimeoutError(), response]) as request, \
+        with patch("urllib.request.OpenerDirector.open", side_effect=[error(503), TimeoutError(), response]) as request, \
                 patch.object(upstream.time, "sleep") as sleep:
             self.assertIs(upstream.open_upstream(url, CONFIG), response)
         self.assertEqual((request.call_count, sleep.call_count), (3, 2))
         for side_effect, calls in (([error(404)], 1), ([error(503)] * 3, 3)):
-            with patch.object(upstream, "urlopen", side_effect=side_effect) as request, \
+            with patch("urllib.request.OpenerDirector.open", side_effect=side_effect) as request, \
                     patch.object(upstream.time, "sleep"):
                 with self.assertRaises(far.MaintenanceError):
                     upstream.open_upstream(url, CONFIG)
@@ -125,6 +128,75 @@ class IntegrityTests(unittest.TestCase):
         with patch.object(upstream.subprocess, "run", side_effect=AssertionError("Arch tools unavailable")):
             self.assertGreater(upstream.publication_version_key("1.2.0_2026.10.21"),
                                upstream.publication_version_key("1.2.0_2026.10.14"))
+
+
+class RedirectTests(unittest.TestCase):
+    def setUp(self):
+        requests = self.requests = []
+        responses = self.responses = {}
+        streams = self.streams = []
+
+        class FixtureTransport(HTTPSHandler):
+            def https_open(self, request):
+                requests.append((request.full_url, request.get_method()))
+                code, location = responses.get(request.full_url, (200, None))
+                headers = Message()
+                headers["Content-Length"] = str(len(PAYLOAD))
+                if location is not None:
+                    headers["Location"] = location
+                response = addinfourl(io.BytesIO(PAYLOAD), headers, request.full_url, code)
+                response.msg = "fixture"
+                streams.append(response)
+                return response
+
+        self.enterContext(patch("socket.create_connection", side_effect=AssertionError("Network prohibited")))
+        self.enterContext(patch.object(upstream, "build_opener", side_effect=lambda handler:
+                                       build_opener(ProxyHandler({}), FixtureTransport(), handler)))
+
+    def test_unlisted_hosts_and_https_downgrades_are_rejected_before_request(self):
+        url = "https://vendor.example/start"
+        for target in ("https://unlisted.example/payload", "http://vendor.example/payload"):
+            with self.subTest(target=target):
+                self.requests.clear()
+                self.responses[url] = (302, target)
+                with self.assertRaisesRegex(far.MaintenanceError, "Unexpected upstream URL"):
+                    upstream.open_upstream(url, CONFIG)
+                self.assertEqual(self.requests, [(url, "GET")])
+                self.assertTrue(all(response.closed for response in self.streams))
+
+    def test_unlisted_intermediate_cannot_be_hidden_by_an_allowed_final_url(self):
+        start, middle, final = (f"https://vendor.example/{path}" for path in ("start", "middle", "final"))
+        unlisted = "https://unlisted.example/hop"
+        self.responses.update({start: (302, middle), middle: (307, unlisted), unlisted: (302, final)})
+        with self.assertRaisesRegex(far.MaintenanceError, "Unexpected upstream URL"):
+            upstream.open_upstream(start, CONFIG)
+        self.assertEqual(self.requests, [(start, "GET"), (middle, "GET")])
+        self.assertTrue(all(response.closed for response in self.streams))
+
+    def test_permitted_relative_and_cross_host_redirects_retain_urllib_behavior(self):
+        start, middle, final = ("https://vendor.example/start", "https://vendor.example/middle",
+                                "https://cdn.example/final")
+        config = CONFIG | {"hosts": ["vendor.example", "cdn.example"]}
+        for code in (301, 302, 303, 307, 308):
+            with self.subTest(code=code):
+                self.requests.clear()
+                self.responses.update({start: (code, "/middle"), middle: (code, final)})
+                with upstream.open_upstream(start, config) as response:
+                    self.assertEqual(response.geturl(), final)
+                    self.assertEqual(response.read(), PAYLOAD)
+                self.assertEqual(self.requests, [(url, "GET") for url in (start, middle, final)])
+
+    def test_saleae_head_discovery_follows_a_permitted_redirect(self):
+        config = far.read_config(Path(__file__).resolve().parents[1] / "packages" / "saleae-logic2")
+        target = "https://downloads2.saleae.com/logic2/Logic-2.4.49-linux-x64.AppImage"
+        self.responses[config["endpoint"]] = (302, target)
+        selected = upstreams.saleae(config)
+        upstream.validate_candidate(selected, config)
+        self.assertEqual(selected["version"], "2.4.49")
+        self.assertEqual(selected["sources"][0]["size"], len(PAYLOAD))
+        self.assertEqual(selected["sources"][0]["url"], target)
+        self.assertEqual(self.requests[0], (config["endpoint"], "HEAD"))
+        self.assertEqual([url for url, _ in self.requests], [config["endpoint"], target])
 
 
 class GithubDiscoveryTests(unittest.TestCase):
