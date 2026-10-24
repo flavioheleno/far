@@ -4,6 +4,8 @@ import hashlib
 import io
 import copy
 from email.message import Message
+from http.client import BadStatusLine, IncompleteRead
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -11,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from urllib.error import URLError
 from urllib.request import HTTPSHandler, ProxyHandler, build_opener
 from urllib.response import addinfourl
 
@@ -67,6 +70,36 @@ class IntegrityTests(unittest.TestCase):
                 else:
                     with self.assertRaises(far.MaintenanceError):
                         upstream.hash_source(candidate()["sources"][0], CONFIG)
+
+    def test_metadata_read_failures_are_normalized_and_close_the_response(self):
+        url = "https://vendor.example/Packages"
+        for error in (IncompleteRead(b"partial", 20), BadStatusLine("broken status"),
+                      URLError("connection lost"), TimeoutError("read timed out")):
+            response = io.BytesIO()
+            with self.subTest(error=error), \
+                    patch.object(upstream, "open_upstream", return_value=response) as request, \
+                    patch.object(response, "read", side_effect=error) as read:
+                with self.assertRaisesRegex(far.MaintenanceError, f"metadata.*{url}") as raised:
+                    upstream.fetch(url, CONFIG, limit=100)
+                self.assertIs(raised.exception.__cause__, error)
+                read.assert_called_once_with(101)
+                request.assert_called_once_with(url, CONFIG)
+            self.assertTrue(response.closed)
+
+    def test_payload_read_failures_are_normalized_and_close_the_response(self):
+        source = candidate()["sources"][0]
+        for error in (IncompleteRead(b"partial", 20), BadStatusLine("broken status"),
+                      URLError("connection lost"), TimeoutError("read timed out")):
+            response = io.BytesIO()
+            with self.subTest(error=error), \
+                    patch.object(upstream, "open_upstream", return_value=response) as request, \
+                    patch.object(response, "read", side_effect=[PAYLOAD[:2], error]) as read:
+                with self.assertRaisesRegex(far.MaintenanceError, f"payload.*{source['url']}") as raised:
+                    upstream.hash_source(source, CONFIG)
+                self.assertIs(raised.exception.__cause__, error)
+                self.assertEqual([call.args for call in read.call_args_list], [(1024 ** 2,)] * 2)
+                request.assert_called_once_with(source["url"], CONFIG)
+            self.assertTrue(response.closed)
 
     def test_updates_one_checksum_and_preserves_supporting_file_checksums(self):
         rendered = upstream.render_recipe(RECIPE, candidate())
@@ -348,6 +381,60 @@ class AppImageDiscoveryTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1] / "packages"
         with self.assertRaisesRegex(far.MaintenanceError, "GitHub release modes"):
             far.update_one(root / "enpass-bin", [bambu()])
+
+
+class GithubTransportTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(patch("socket.create_connection", side_effect=AssertionError("Network prohibited")))
+
+    def test_truncated_response_retries_then_succeeds(self):
+        truncated, complete = io.BytesIO(), io.BytesIO(b'[{"sha": "fixture"}]')
+        with patch.object(far, "urlopen", side_effect=[truncated, complete]) as request, \
+                patch.object(truncated, "read", side_effect=IncompleteRead(b"[", 20)) as read, \
+                patch.object(far.time, "sleep") as sleep:
+            self.assertEqual(far.request_json("https://api.github.com/fixture"), [{"sha": "fixture"}])
+            read.assert_called_once_with()
+            self.assertEqual(request.call_count, 2)
+            sleep.assert_called_once_with(1)
+        self.assertTrue(truncated.closed and complete.closed)
+
+    def test_http_read_failures_exhaust_three_attempts_as_maintenance_errors(self):
+        for error in (IncompleteRead(b"[", 20), BadStatusLine("broken status")):
+            with self.subTest(error=error), patch.object(far, "urlopen") as request, \
+                    patch.object(far.time, "sleep") as sleep:
+                response = request.return_value.__enter__.return_value
+                response.read.side_effect = error
+                with self.assertRaisesRegex(far.MaintenanceError, "GitHub request failed") as raised:
+                    far.request_json("https://api.github.com/fixture")
+                self.assertIs(raised.exception.__cause__, error)
+                self.assertEqual((request.call_count, response.read.call_count), (3, 3))
+                self.assertEqual(request.return_value.__exit__.call_count, 3)
+                self.assertEqual([call.args for call in sleep.call_args_list], [(1,), (2,)])
+
+    def test_exhausted_github_reads_preserve_later_package_output_and_report(self):
+        package = far.ROOT / "packages" / "extrudo-appimage"
+        recipe = (package / "PKGBUILD").read_text()
+        tag, asset = far.assignment(recipe, "_url").rsplit("/", 2)[-2:]
+        release = appimage_release(package.name, tag, asset)
+        release["assets"][0]["digest"] = "sha256:" + upstream.checksum_values(recipe, "sha256sums")[0]
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(far, "urlopen") as request, patch.object(far.time, "sleep"), \
+                patch.object(sys, "stdout", output), \
+                patch.object(upstream, "hash_source", side_effect=AssertionError("should not download")):
+            report = Path(directory) / "report.json"
+            response = request.return_value.__enter__.return_value
+            response.read.side_effect = [IncompleteRead(b"[", 20)] * 3 + [json.dumps([release]).encode()]
+            with patch.object(sys, "argv", ["update-packages", "bambustudio-appimage", package.name,
+                                           "--report", str(report)]), self.assertRaises(SystemExit) as exited:
+                far.cli(far.update_main)
+            self.assertEqual(exited.exception.code, 1)
+            results = json.loads(report.read_text())
+        self.assertEqual([json.loads(line) for line in output.getvalue().splitlines()], results)
+        self.assertEqual([(result["package"], result["status"]) for result in results],
+                         [("bambustudio-appimage", "error"), (package.name, "up-to-date")])
+        self.assertIn("GitHub request failed", results[0]["message"])
+        self.assertEqual(request.call_count, 4)
 
 
 class VendorDiscoveryTests(unittest.TestCase):

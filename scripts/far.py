@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from http.client import HTTPException
 import json
 import os
 from pathlib import Path
@@ -131,7 +132,7 @@ def request_json(url: str) -> list:
         except HTTPError as error:
             if error.code not in {429, 500, 502, 503, 504} or attempt == 2:
                 raise MaintenanceError(f"GitHub request failed with HTTP {error.code}") from error
-        except (URLError, TimeoutError) as error:
+        except (URLError, TimeoutError, HTTPException) as error:
             if attempt == 2:
                 raise MaintenanceError(f"GitHub request failed: {error}") from error
         time.sleep(2 ** attempt)
