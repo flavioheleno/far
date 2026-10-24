@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from http.client import HTTPException
 from pathlib import Path
 import re
 import shlex
@@ -116,8 +117,11 @@ def open_upstream(url: str, config: dict, *, method: str = "GET"):
 
 
 def fetch(url: str, config: dict, *, limit: int = 8 * 1024 ** 2) -> bytes:
-    with open_upstream(url, config) as response:
-        data = response.read(limit + 1)
+    try:
+        with open_upstream(url, config) as response:
+            data = response.read(limit + 1)
+    except (URLError, TimeoutError, HTTPException) as error:
+        raise MaintenanceError(f"Upstream metadata read failed for {url}: {error}") from error
     if len(data) > limit:
         raise MaintenanceError("Upstream metadata exceeds its size limit")
     return data
@@ -199,12 +203,15 @@ def validate_candidate(candidate: dict, config: dict) -> None:
 def hash_source(source: dict, config: dict) -> str:
     digest = hashlib.new(source["algorithm"])
     size = 0
-    with open_upstream(source["url"], config) as response:
-        while block := response.read(1024 ** 2):
-            size += len(block)
-            if size > (source.get("size") or MAX_DOWNLOAD):
-                raise MaintenanceError("Upstream payload exceeds its declared or maximum size")
-            digest.update(block)
+    try:
+        with open_upstream(source["url"], config) as response:
+            while block := response.read(1024 ** 2):
+                size += len(block)
+                if size > (source.get("size") or MAX_DOWNLOAD):
+                    raise MaintenanceError("Upstream payload exceeds its declared or maximum size")
+                digest.update(block)
+    except (URLError, TimeoutError, HTTPException) as error:
+        raise MaintenanceError(f"Upstream payload read failed for {source['url']}: {error}") from error
     if not size or (source.get("size") is not None and size != source["size"]):
         raise MaintenanceError("Upstream payload is empty or truncated")
     actual = digest.hexdigest()

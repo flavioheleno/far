@@ -191,8 +191,11 @@ slots. Every declared architecture must be available at the same version. New
 payloads are downloaded into the hashing stream and discarded, with declared
 sizes and published checksums verified when available. Current sources with no
 published checksum are downloaded again to detect changed content. Upstream
-requests retry rate limits, server errors, and network failures up to three
-times; other HTTP errors fail immediately. Local
+requests retry rate limits, server errors, and connection failures up to three
+times; GitHub API reads also retry HTTP protocol failures, including truncated
+responses. Other HTTP errors fail immediately. Vendor metadata and payload read
+failures are reported for that package without retrying the stream; later
+packages still run and appear in the report. Local
 supporting files and recipe customizations remain in FAR; the updater changes
 only the version/source literals, payload checksums, `pkgrel`, and `.SRCINFO`.
 
