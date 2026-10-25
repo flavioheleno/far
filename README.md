@@ -40,6 +40,7 @@ packages/              One directory per package base
 scripts/               Recipe validation and update orchestration
 tests/                 Tests for update selection and failure handling
 .github/workflows/     Validation and scheduled recipe updates
+Makefile               Shortcuts for common maintenance commands
 AGENTS.md              Instructions for future repository work
 ```
 
@@ -117,6 +118,31 @@ supplies `makepkg` and `vercmp`. Install
 dependencies declared in each recipe; rua has its own installation requirements.
 The Python tooling uses only the standard library. The entry-point scripts
 locate FAR from their own paths; the examples below assume the repository root.
+
+With GNU Make installed, run `make` to list maintenance shortcuts:
+
+```sh
+make validate                              # Recipe checks, offline tests, actionlint
+make check PACKAGES="spotify tableplus"    # Check selected recipes
+make list                                  # List managed packages
+make update PACKAGES=rtk-bin                # Preview an upstream update
+make update-apply PACKAGES=rtk-bin          # Apply an upstream update
+make report                                # Write .far-updates/report.json
+make srcinfo PACKAGE=rtk-bin                # Regenerate one .SRCINFO
+```
+
+`make test` and `make lint` run the tests and workflow linter separately.
+Checks and updates select all packages when `PACKAGES` is omitted; `srcinfo`
+requires an explicit `PACKAGE`. Pass extra updater options with
+`UPDATE_FLAGS="--verify-current"` or
+`UPDATE_FLAGS="--releases-json /path/to/releases.json"`, and override the report
+path with `REPORT=/path/to/report.json`. Relative paths resolve from the
+repository root, including when using `make -f /path/to/far/Makefile` elsewhere.
+The `update`, `update-apply`, and `report` targets can contact upstream and hash
+downloads. Metadata regeneration replaces `.SRCINFO` only after `makepkg`
+succeeds. These targets do not build or install packages.
+
+The underlying commands remain available directly:
 
 ```sh
 ./scripts/check-packages
