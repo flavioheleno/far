@@ -2,8 +2,8 @@
 # Contributor: Joao Costa <arch@joaocosta.dev>
 # Based on AUR bambustudio-appimage; see README.md for provenance.
 pkgname=bambustudio-appimage
-pkgver=2.8.4.57
-pkgrel=1
+pkgver='2.9.1.70'
+pkgrel='1'
 pkgdesc='PC software for Bambu Lab and other 3D printers'
 arch=('x86_64')
 url='https://github.com/bambulab/BambuStudio'
@@ -13,9 +13,9 @@ provides=('bambustudio')
 conflicts=('bambustudio' 'bambustudio-git' 'bambustudio-bin')
 options=('!strip' '!debug')
 
-_url='https://github.com/bambulab/BambuStudio/releases/download/v02.08.04.57/BambuStudio_ubu24-v02.08.04.57-20260922164607.AppImage'
+_url='https://github.com/bambulab/BambuStudio/releases/download/v02.09.01.70/BambuStudio_ubu24-v02.09.01.70-20261103183404.AppImage'
 source=("BambuStudio-${pkgver}.AppImage::${_url}")
-sha256sums=('4870e355fa5e98e3a47bcd196b7ae16c2e9c15896a81ceaabe09ddbefa80d2f0')
+sha256sums=('668dabb1be53c758189ed6bc89935285dea5e0af46216546b1bafd6882e9aff0')
 
 prepare() {
   chmod +x "BambuStudio-${pkgver}.AppImage"
