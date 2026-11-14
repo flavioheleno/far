@@ -1,7 +1,7 @@
 # Maintainer: Benigno B. Junior <benignobjunior@gmail.com>
 pkgname=rtk-bin
 pkgver='1.2.0'
-pkgrel='1'
+pkgrel='2'
 pkgdesc='CLI proxy that reduces LLM token consumption by 60-90% on common dev commands'
 arch=('x86_64' 'aarch64')
 depends_aarch64=('glibc' 'libgcc')
@@ -9,6 +9,7 @@ url='https://github.com/rtk-ai/rtk'
 license=('MIT')
 provides=('rtk')
 conflicts=('rtk')
+options=('!debug')
 _url_license='https://github.com/rtk-ai/rtk/raw/v1.2.0/LICENSE'
 _url_x86_64='https://github.com/rtk-ai/rtk/releases/download/v1.2.0/rtk-x86_64-unknown-linux-musl.tar.gz'
 _url_aarch64='https://github.com/rtk-ai/rtk/releases/download/v1.2.0/rtk-aarch64-unknown-linux-gnu.tar.gz'

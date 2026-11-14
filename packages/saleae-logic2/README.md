@@ -13,6 +13,8 @@ desktop integration, and sets the Chromium sandbox helper's permissions as
 declared in `PKGBUILD`. The command is `/usr/bin/saleae-logic2`. Device access
 and desktop startup require local verification; CI never executes the AppImage.
 
+Debug-package generation is disabled with `!debug`.
+
 The recipe targets Arch Linux `x86_64`. Read [PKGBUILD](PKGBUILD) and [.SRCINFO](.SRCINFO) for current
 versions and runtime, build, and optional dependencies.
 

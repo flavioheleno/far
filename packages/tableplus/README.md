@@ -14,6 +14,8 @@ placing package-managed files under `/usr/local`. The initial FAR packaging
 adjustment used `pkgrel=1.1`; new upstream versions reset it to `1`. Consult
 `PKGBUILD` for the current revision.
 
+Debug-package generation is disabled with `!debug`.
+
 The recipe declares `x86_64` and `aarch64`; FAR's local target is Arch Linux
 x86_64. Read [PKGBUILD](PKGBUILD) and [.SRCINFO](.SRCINFO) for current
 versions and runtime, build, and optional dependencies.

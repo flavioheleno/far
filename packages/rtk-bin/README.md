@@ -14,6 +14,8 @@ payloads are `rtk-x86_64-unknown-linux-musl.tar.gz` for x86_64 and
 `rtk-aarch64-unknown-linux-gnu.tar.gz` for aarch64. The aarch64 recipe retains
 its `glibc` and `libgcc` dependencies.
 
+Debug-package generation is disabled with `!debug`.
+
 The recipe declares `x86_64` and `aarch64`; FAR's local target is Arch Linux
 x86_64. Read [PKGBUILD](PKGBUILD) and [.SRCINFO](.SRCINFO) for current
 versions and runtime, build, and optional dependencies.
