@@ -3,14 +3,16 @@
 ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 PYTHON ?= python3
 PACKAGES ?=
+INSTALL_FLAGS ?=
 UPDATE_FLAGS ?=
 REPORT ?= .far-updates/report.json
 
-.PHONY: help check test lint validate list update update-apply report srcinfo
+.PHONY: help install check test lint validate list update update-apply report srcinfo
 
 help:
 	@printf '%s\n' \
 	  'FAR maintenance commands:' \
+	  '  make install        Build all packages and install once (local only)' \
 	  '  make check          Check recipes and generated metadata' \
 	  '  make test           Run offline unit tests' \
 	  '  make lint           Check GitHub Actions workflows with actionlint' \
@@ -23,9 +25,13 @@ help:
 	  '' \
 	  'Options:' \
 	  '  PACKAGES="pkgbase ..."  Limit checks and updates (default: all)' \
+	  '  INSTALL_FLAGS="..."     Build/install options, e.g. --needed' \
 	  '  UPDATE_FLAGS="..."      Extra updater options, e.g. --verify-current' \
 	  '  REPORT=<path>           Report path (default: .far-updates/report.json)' \
 	  'Relative paths are resolved from the repository root.'
+
+install:
+	cd "$(ROOT)" && ./scripts/build-packages $(INSTALL_FLAGS)
 
 check:
 	cd "$(ROOT)" && ./scripts/check-packages $(PACKAGES)

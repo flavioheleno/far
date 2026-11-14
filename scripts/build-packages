@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+needed=0
+if (( $# )); then
+    if (( $# != 1 )) || [[ $1 != --needed ]]; then
+        printf 'Usage: %s [--needed]\n' "$0" >&2
+        exit 1
+    fi
+    needed=1
+fi
+
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+declare -A installed=()
+if (( needed )); then
+    if ! installed_packages=$(pacman -Q); then
+        printf 'Cannot query installed packages.\n' >&2
+        exit 1
+    fi
+    while read -r name version; do
+        [[ -z $name ]] || installed["$name"]=$version
+    done <<< "$installed_packages"
+fi
+
+archives=()
+failed=0
+found=0
+output_directory=
+for package in "$root"/packages/*; do
+    [[ -d $package && ! -L $package && -f $package/PKGBUILD ]] || continue
+    found=1
+    if (( needed )); then
+        # ponytail: reuse generated metadata instead of executing recipes to check versions.
+        if [[ ! -f $package/.SRCINFO || ! -r $package/.SRCINFO || -L $package/.SRCINFO ]]; then
+            printf 'Missing readable regular .SRCINFO: %s\n' "${package##*/}" >&2
+            failed=1
+            continue
+        fi
+        pkgbase='' pkgver='' pkgrel='' epoch=''
+        names=()
+        valid=1
+        while read -r field _ value; do
+            case "$field" in
+                pkgbase) pkgbase=$value ;;
+                pkgver) pkgver=$value ;;
+                pkgrel) pkgrel=$value ;;
+                epoch) epoch=$value ;;
+                pkgname)
+                    names+=("$value")
+                    [[ $value =~ ^[a-z0-9][a-z0-9@._+-]*$ ]] || valid=0 ;;
+            esac
+        done < "$package/.SRCINFO"
+        if [[ $valid == 0 || $pkgbase != "${package##*/}" || -z $pkgver || -z $pkgrel || ${#names[@]} == 0 ]]; then
+            printf 'Invalid .SRCINFO: %s\n' "${package##*/}" >&2
+            failed=1
+            continue
+        fi
+        version="$pkgver-$pkgrel"
+        [[ -z $epoch ]] || version="$epoch:$version"
+        current=1
+        for name in "${names[@]}"; do
+            if [[ -z ${installed[$name]-} ]]; then
+                current=0
+                break
+            fi
+            if ! comparison=$(vercmp "${installed[$name]}" "$version"); then
+                printf 'Cannot compare installed version: %s\n' "$name" >&2
+                failed=1
+                continue 2
+            fi
+            if [[ $comparison != 0 ]]; then
+                current=0
+                break
+            fi
+        done
+        if (( current )); then
+            printf 'Skipping %s (already installed: %s)\n' "${package##*/}" "$version"
+            continue
+        fi
+    fi
+    if [[ -z $output_directory ]]; then
+        # ponytail: a fresh output directory keeps stale archives out of the install.
+        output_directory=$(mktemp -d -t far-packages.XXXXXXXXXX)
+        output_directory=$(cd -- "$output_directory" && pwd)
+        export PKGDEST="$output_directory"
+        printf 'Package output: %s\n' "$PKGDEST"
+    fi
+    printf '\nBuilding %s\n' "${package##*/}"
+    if ! output=$(
+        cd -- "$package" || exit 1
+        makepkg -s >&2 || exit 1
+        makepkg --packagelist
+    ); then
+        printf 'Build or package listing failed: %s\n' "${package##*/}" >&2
+        failed=1
+        continue
+    fi
+    before=${#archives[@]}
+    while IFS= read -r archive; do
+        # makepkg names debug packages "<pkgbase>-debug"; build them but never install.
+        [[ ${archive##*/} == "${package##*/}"-debug-* ]] && continue
+        [[ -f $archive ]] && archives+=("$archive")
+    done <<< "$output"
+    if (( ${#archives[@]} == before )); then
+        printf 'No package archives produced: %s\n' "${package##*/}" >&2
+        failed=1
+    fi
+done
+
+(( failed == 0 )) || exit 1
+if (( ${#archives[@]} == 0 )); then
+    if (( found )); then
+        printf 'All packages are already installed at the recipe versions.\n'
+        exit 0
+    fi
+    printf 'No packages found.\n' >&2
+    exit 1
+fi
+sudo pacman -U -- "${archives[@]}"

@@ -37,8 +37,8 @@ upstream release can trigger a recipe PR without waiting for an AUR maintainer.
 
 ```text
 packages/              One directory per package base
-scripts/               Recipe validation and update orchestration
-tests/                 Tests for update selection and failure handling
+scripts/               Recipe checks, updates, and local build orchestration
+tests/                 Offline maintenance and local build orchestration tests
 .github/workflows/     Validation and scheduled recipe updates
 Makefile               Shortcuts for common maintenance commands
 AGENTS.md              Instructions for future repository work
@@ -98,6 +98,38 @@ your AUR helper from independently replacing FAR-managed packages. Rua supports
 `--ignore` for selective AUR upgrades; consult its help before choosing your
 exclusions. Dependencies outside the official repositories must be reviewed and
 made available locally; FAR does not maintain the whole dependency tree.
+
+To build every package and install all results in one transaction, run as your
+normal user from the checkout root:
+
+```sh
+make install
+```
+
+The target runs `./scripts/build-packages`, which also works directly from any
+working directory. It runs `makepkg -s` for each recipe, then invokes
+`sudo pacman -U` once only if every build succeeds. `makepkg -s`
+can install missing official-repository dependencies during the builds. Archives
+are collected with `makepkg --packagelist`, including split packages; any
+`<pkgbase>-debug` packages are built but not installed. A fresh temporary output
+directory overrides `PKGDEST` to exclude old archives; its path is printed and
+its files are retained after success or failure. No managed packages are
+installed if a build or package-list check fails. This is a local-only command,
+not a CI build step.
+
+To skip recipes already installed at the same version:
+
+```sh
+make install INSTALL_FLAGS=--needed
+```
+
+The direct command is `./scripts/build-packages --needed`. Version checks read
+generated `.SRCINFO` and compare `epoch`, `pkgver`, and `pkgrel` with `pacman -Q`
+using Arch's `vercmp`; keep `.SRCINFO` current after recipe changes. Every declared
+package in a split recipe must match before that recipe is skipped. Missing or
+different installed versions are rebuilt, even if the installed version is newer.
+If everything matches, the script succeeds without building, creating an output
+directory, or invoking `pacman -U`. Without `--needed`, every recipe is built.
 
 ## Metadata maintenance
 
