@@ -5,24 +5,24 @@
 # Contributor: Henry Pham <huy at tableplus dot com>
 
 pkgname=tableplus
-pkgver='2.2.2.324'
-pkgrel='2'
+pkgver='27.4.1.402'
+pkgrel='1'
 pkgdesc='Modern, native, and friendly GUI tool for relational databases (Alpha)'
 arch=('x86_64' 'aarch64')
 url='https://tableplus.com/'
 license=('custom')
 depends=('gtksourceview3' 'libgee' 'gnome-keyring')
 options=('!debug')
-_url_x86_64='https://deb.tableplus.com/debian/pool/main/t/tableplus/tableplus_2.2.2-324_amd64.deb'
-_url_aarch64='https://deb.tableplus.com/debian/pool/main/t/tableplus/tableplus_2.2.2-324_arm64.deb'
+_url_x86_64='https://deb.tableplus.com/debian/pool/main/t/tableplus/tableplus_27.4.1-402_amd64.deb'
+_url_aarch64='https://deb.tableplus.com/debian/pool/main/t/tableplus/tableplus_27.4.1-402_arm64.deb'
 
 source=('LICENSE' 'tableplus.desktop')
 source_x86_64=("tableplus_${pkgver}_${pkgrel}_amd64.deb::${_url_x86_64}")
 source_aarch64=("tableplus_${pkgver}_${pkgrel}_arm64.deb::${_url_aarch64}")
 sha256sums=('76f924b1ebad5309ccf0dd7f3fe3d1b57ff3088b208a603900b0e240fdb5debb'
             '83620b08e325418947f0007ecca7b981a988bfdac3f466db165f9262d1c0e5f4')
-sha256sums_x86_64=('3655a6e9d5a8871966c27974f925ed3c33e279a5313e6aa1b3e22ba312f6b424')
-sha256sums_aarch64=('040e8eb673f017751da7483a9e925bea99250b7eb06f066bc74c71fe7848759f')
+sha256sums_x86_64=('5c3d8bc0c20426cdc95b7cf01fa6930129b14becddbf9da76fc8ff9fedd52476')
+sha256sums_aarch64=('74a4d82e8f1cf4a9351495a8acc2f8d7471e2cb2f210d9faa1e91e248110db5a')
 # FAR's updater verifies the vendor APT Release signature with this key; makepkg
 # checks the .deb against the checksum taken from that signed metadata.
 validpgpkeys=('211438D2880D8D98E100B1412A17818B38772786') # TablePlus (Release key) <nick@tableplus.com>
